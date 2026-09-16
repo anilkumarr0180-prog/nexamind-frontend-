@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/features/auth';
 import { usageKeys, getTokenBalance } from '@/features/usage';
+import { API_BASE_URL } from '@/lib/api/client';
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
@@ -120,7 +121,7 @@ export const SettingsPage: React.FC = () => {
               <div className="space-y-0.5">
                 <p className="text-[11px] text-slate-400">VITE_API_BASE_URL</p>
                 <p className="text-xs font-mono text-slate-200">
-                  {import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1'}
+                  {API_BASE_URL}
                 </p>
               </div>
               <Badge variant="success" size="sm" dot>Gateway Connected</Badge>

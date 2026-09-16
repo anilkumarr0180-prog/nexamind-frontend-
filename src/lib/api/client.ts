@@ -37,10 +37,26 @@ export const clearAuthToken = (): void => {
   }
 };
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+export const normalizeApiBaseUrl = (rawUrl?: string): string => {
+  if (!rawUrl || !rawUrl.trim()) {
+    return 'http://localhost:5001/api/v1';
+  }
+  let clean = rawUrl.trim().replace(/\/+$/, '');
+  // If the URL does not end with /api/v1, automatically append the path
+  if (!clean.endsWith('/api/v1')) {
+    if (clean.endsWith('/api')) {
+      clean = `${clean}/v1`;
+    } else {
+      clean = `${clean}/api/v1`;
+    }
+  }
+  return clean;
+};
+
+export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 export const apiClient = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

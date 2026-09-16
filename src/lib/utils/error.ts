@@ -1,5 +1,6 @@
 import { isAxiosError } from 'axios';
 import type { ApiErrorResponse } from '@/types/api';
+import { API_BASE_URL } from '@/lib/api/client';
 
 export type ErrorType = 'NETWORK_ERROR' | 'BACKEND_4XX' | 'BACKEND_5XX' | 'UNKNOWN';
 
@@ -35,7 +36,12 @@ export const classifyApiError = (
     } else if (err.code === 'ECONNABORTED') {
       networkMsg = 'Connection timed out while waiting for the backend server.';
     } else if (err.message) {
-      networkMsg = `Network error (${err.message}). Please verify the backend is running at ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1'}.`;
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      if (origin && !origin.includes('localhost')) {
+        networkMsg = `Network Error: Unable to reach backend at ${API_BASE_URL}. Please check: 1) The backend URL is correct and awake. 2) The backend CORS_ORIGINS includes "${origin}".`;
+      } else {
+        networkMsg = `Network error (${err.message}). Please verify the backend is running at ${API_BASE_URL}.`;
+      }
     }
 
     return {
