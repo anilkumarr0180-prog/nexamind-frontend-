@@ -14,7 +14,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
-      <div className="w-full space-y-1.5">
+      <div className="w-full space-y-1.5 text-left">
         {label && (
           <label
             htmlFor={inputId}
@@ -25,7 +25,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative flex items-center">
           {leftIcon && (
-            <div className="absolute left-3 flex items-center pointer-events-none text-slate-500">
+            <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-500">
               {leftIcon}
             </div>
           )}
@@ -34,29 +34,28 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             disabled={disabled}
             className={cn(
-              'w-full rounded-lg bg-surface-muted border text-sm text-slate-100 placeholder-slate-500 transition-colors',
-              'py-2 text-sm',
-              leftIcon ? 'pl-9' : 'pl-3.5',
-              rightIcon ? 'pr-9' : 'pr-3.5',
+              'w-full h-11 rounded-xl bg-[#0f1422] border text-sm text-slate-100 placeholder-slate-500 transition-all duration-150',
+              leftIcon ? 'pl-10' : 'pl-3.5',
+              rightIcon ? 'pr-10' : 'pr-3.5',
               error
-                ? 'border-rose-500/60 focus:border-rose-500 focus:ring-rose-500/20'
-                : 'border-default focus:border-brand-500 focus:ring-brand-500/20',
-              'focus:outline-none focus:ring-2',
-              disabled && 'opacity-60 cursor-not-allowed bg-surface',
+                ? 'border-rose-500/50 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                : 'border-slate-800/90 hover:border-slate-700/90 focus:border-brand-500/80 focus:ring-2 focus:ring-brand-500/20',
+              'focus:outline-none',
+              disabled && 'opacity-60 cursor-not-allowed bg-[#0b0f19]',
               className,
             )}
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 flex items-center text-slate-500">
+            <div className="absolute right-2.5 flex items-center text-slate-400">
               {rightIcon}
             </div>
           )}
         </div>
         {error ? (
-          <p className="text-xs text-rose-400 leading-none">{error}</p>
+          <p className="text-xs text-rose-400/90 leading-tight pt-0.5">{error}</p>
         ) : hint ? (
-          <p className="text-xs text-slate-500 leading-none">{hint}</p>
+          <p className="text-xs text-slate-400 leading-tight pt-0.5">{hint}</p>
         ) : null}
       </div>
     );
