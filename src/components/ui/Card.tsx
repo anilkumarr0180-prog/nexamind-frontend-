@@ -16,12 +16,12 @@ export const Card: React.FC<CardProps> = ({
   return (
     <div
       className={cn(
-        'rounded-xl border transition-all duration-200',
+        'rounded-xl transition-all duration-200',
         elevated
-          ? 'bg-surface-elevated border-strong shadow-elevated'
-          : 'bg-surface border-default shadow-card',
+          ? 'bg-[#182035]/85 backdrop-blur-md border border-white/[0.12] shadow-elevated'
+          : 'bg-[#13192a]/75 backdrop-blur-md border border-white/[0.08] shadow-card',
         interactive &&
-          'hover:bg-surface-hover hover:border-strong cursor-pointer active:scale-[0.99]',
+          'hover:bg-[#1b243c]/90 hover:border-violet-500/40 cursor-pointer active:scale-[0.99] hover:shadow-glow-subtle',
         className,
       )}
       {...props}
@@ -38,7 +38,7 @@ export const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
 }) => {
   return (
     <div
-      className={cn('flex flex-col space-y-1.5 p-5 border-b border-subtle', className)}
+      className={cn('flex flex-col space-y-1.5 p-5 border-b border-white/[0.06]', className)}
       {...props}
     >
       {children}
@@ -53,7 +53,7 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
 }) => {
   return (
     <h3
-      className={cn('text-base font-semibold tracking-tight text-slate-100', className)}
+      className={cn('text-base font-display font-semibold tracking-tight text-white', className)}
       {...props}
     >
       {children}
@@ -91,7 +91,7 @@ export const CardFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   return (
     <div
       className={cn(
-        'flex items-center justify-between p-5 pt-0 border-t border-subtle mt-4',
+        'flex items-center justify-between p-5 pt-0 border-t border-white/[0.06] mt-4',
         className,
       )}
       {...props}

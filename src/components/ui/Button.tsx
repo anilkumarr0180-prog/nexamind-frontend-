@@ -27,13 +27,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        'bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white shadow-subtle hover:shadow-glow-brand border border-brand-500/40',
+        'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 active:from-violet-700 active:to-indigo-700 text-white shadow-subtle hover:shadow-glow-brand border border-violet-400/30',
       secondary:
-        'bg-surface-elevated hover:bg-surface-hover active:bg-surface-active text-slate-200 border border-subtle hover:border-default',
+        'bg-[#182035] hover:bg-[#212b48] active:bg-[#2a365b] text-slate-200 border border-white/[0.08] hover:border-white/[0.16]',
       ghost:
-        'bg-transparent hover:bg-surface-hover active:bg-surface-active text-slate-300 hover:text-white',
+        'bg-transparent hover:bg-white/[0.06] active:bg-white/[0.1] text-slate-300 hover:text-white',
       outline:
-        'bg-transparent hover:bg-surface-hover active:bg-surface-active text-slate-300 hover:text-white border border-default hover:border-strong',
+        'bg-transparent hover:bg-white/[0.06] active:bg-white/[0.1] text-slate-300 hover:text-white border border-white/[0.12] hover:border-violet-500/40',
       danger:
         'bg-accent-rose/15 hover:bg-accent-rose/25 active:bg-accent-rose/30 text-rose-300 border border-rose-500/30 hover:border-rose-500/50',
     };

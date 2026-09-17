@@ -21,14 +21,14 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, code }) => {
   };
 
   return (
-    <div className="relative rounded-xl overflow-hidden bg-[#0c0e15] border border-white/10 my-3 shadow-card group">
+    <div className="relative rounded-xl overflow-hidden bg-[#171717] border border-[#2f2f2f] my-3.5 group">
       {/* Code Header Bar */}
-      <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#121520] border-b border-white/[0.07] text-[11px] font-mono text-slate-400 select-none">
-        <span className="uppercase tracking-wider text-slate-400">{language || 'code'}</span>
+      <div className="flex items-center justify-between px-4 py-2 bg-[#212121] border-b border-[#2f2f2f] text-[11px] font-mono text-[#b4b4b4] select-none">
+        <span className="uppercase tracking-wider text-[#b4b4b4] font-medium">{language || 'code'}</span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors cursor-pointer"
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[#b4b4b4] hover:text-[#ececec] hover:bg-white/[0.06] transition-colors cursor-pointer"
           title="Copy code to clipboard"
           aria-label="Copy code"
         >
@@ -37,21 +37,21 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, code }) => {
               <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
-              <span className="text-emerald-400">Copied</span>
+              <span className="text-emerald-400 font-medium">Copied</span>
             </>
           ) : (
             <>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              <span>Copy</span>
+              <span>Copy code</span>
             </>
           )}
         </button>
       </div>
 
       {/* Code Content */}
-      <pre className="p-4 overflow-x-auto text-[13px] font-mono leading-relaxed text-slate-200">
+      <pre className="p-4 overflow-x-auto text-[13px] font-mono leading-relaxed text-[#ececec]">
         <code>{code}</code>
       </pre>
     </div>
@@ -64,7 +64,7 @@ export interface MarkdownMessageProps {
 
 export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => {
   return (
-    <div className="prose prose-invert max-w-none text-[15px] sm:text-base leading-relaxed text-slate-200 font-normal">
+    <div className="prose prose-invert max-w-none text-[15px] sm:text-base leading-relaxed text-[#ececec] font-normal">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -80,7 +80,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
 
             return (
               <code
-                className="font-mono text-[13px] bg-[#1a1d29] text-brand-300 px-1.5 py-0.5 rounded border border-white/[0.08]"
+                className="font-mono text-[13px] bg-[#2f2f2f] text-[#ececec] px-1.5 py-0.5 rounded border border-white/[0.08]"
                 {...props}
               >
                 {children}
@@ -90,34 +90,34 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
 
           // Paragraphs
           p({ children }) {
-            return <p className="mb-3 last:mb-0 leading-relaxed text-slate-200">{children}</p>;
+            return <p className="mb-3 last:mb-0 leading-relaxed text-[#ececec]">{children}</p>;
           },
 
           // Headings
           h1({ children }) {
             return (
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-100 mt-5 mb-2.5 first:mt-0 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-[#ececec] mt-5 mb-2.5 first:mt-0 tracking-tight">
                 {children}
               </h1>
             );
           },
           h2({ children }) {
             return (
-              <h2 className="text-lg sm:text-xl font-semibold text-slate-100 mt-4 mb-2 first:mt-0 tracking-tight">
+              <h2 className="text-lg sm:text-xl font-semibold text-[#ececec] mt-4 mb-2 first:mt-0 tracking-tight">
                 {children}
               </h2>
             );
           },
           h3({ children }) {
             return (
-              <h3 className="text-base sm:text-lg font-semibold text-slate-200 mt-3.5 mb-1.5 first:mt-0">
+              <h3 className="text-base sm:text-lg font-semibold text-[#ececec] mt-3.5 mb-1.5 first:mt-0">
                 {children}
               </h3>
             );
           },
           h4({ children }) {
             return (
-              <h4 className="text-sm sm:text-base font-semibold text-slate-300 mt-3 mb-1 first:mt-0">
+              <h4 className="text-sm sm:text-base font-semibold text-[#ececec] mt-3 mb-1 first:mt-0">
                 {children}
               </h4>
             );
@@ -126,14 +126,14 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
           // Lists
           ul({ children }) {
             return (
-              <ul className="list-disc pl-5 my-2.5 space-y-1.5 text-slate-200 marker:text-brand-400">
+              <ul className="list-disc pl-5 my-2.5 space-y-1.5 text-[#ececec] marker:text-[#8e8e8e]">
                 {children}
               </ul>
             );
           },
           ol({ children }) {
             return (
-              <ol className="list-decimal pl-5 my-2.5 space-y-1.5 text-slate-200 marker:text-brand-400">
+              <ol className="list-decimal pl-5 my-2.5 space-y-1.5 text-[#ececec] marker:text-[#8e8e8e]">
                 {children}
               </ol>
             );
@@ -145,7 +145,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
           // Quotes
           blockquote({ children }) {
             return (
-              <blockquote className="border-l-2 border-brand-500/60 pl-4 py-1 my-3 text-slate-300 italic bg-brand-500/[0.04] rounded-r-lg">
+              <blockquote className="border-l-2 border-[#525252] pl-4 py-1.5 my-3.5 text-[#b4b4b4] italic bg-[#262626]/50 rounded-r-xl">
                 {children}
               </blockquote>
             );
@@ -158,7 +158,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors cursor-pointer"
+                className="text-[#ececec] underline underline-offset-2 hover:text-white transition-colors cursor-pointer font-medium"
               >
                 {children}
               </a>
@@ -168,7 +168,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
           // Tables
           table({ children }) {
             return (
-              <div className="my-3 overflow-x-auto rounded-xl border border-white/10 shadow-card">
+              <div className="my-3 overflow-x-auto rounded-xl border border-[#2f2f2f]">
                 <table className="w-full border-collapse text-left text-xs sm:text-sm">
                   {children}
                 </table>
@@ -177,14 +177,14 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
           },
           thead({ children }) {
             return (
-              <thead className="bg-[#141724] border-b border-white/10 text-slate-200 font-semibold">
+              <thead className="bg-[#171717] border-b border-[#2f2f2f] text-[#ececec] font-semibold">
                 {children}
               </thead>
             );
           },
           th({ children }) {
             return (
-              <th className="px-3.5 py-2.5 font-semibold text-slate-200 border-r border-white/5 last:border-r-0">
+              <th className="px-3.5 py-2.5 font-semibold text-slate-100 border-r border-white/5 last:border-r-0">
                 {children}
               </th>
             );
@@ -204,7 +204,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
 
           // Strong & Emphasis
           strong({ children }) {
-            return <strong className="font-semibold text-slate-100">{children}</strong>;
+            return <strong className="font-semibold text-white">{children}</strong>;
           },
         }}
       >

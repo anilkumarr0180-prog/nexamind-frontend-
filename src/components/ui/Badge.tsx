@@ -17,20 +17,20 @@ export const Badge: React.FC<BadgeProps> = ({
 }) => {
   const variantStyles = {
     neutral: 'bg-surface-elevated text-slate-300 border-subtle',
-    brand: 'bg-brand-500/10 text-brand-300 border-brand-500/25',
-    success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
-    warning: 'bg-amber-500/10 text-amber-400 border-amber-500/25',
-    error: 'bg-rose-500/10 text-rose-400 border-rose-500/25',
-    ai: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+    brand: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+    success: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    warning: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    error: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+    ai: 'bg-gradient-to-r from-violet-500/20 to-indigo-500/20 text-violet-200 border-violet-400/30',
   };
 
   const dotColors = {
     neutral: 'bg-slate-400',
-    brand: 'bg-brand-400',
-    success: 'bg-emerald-400',
-    warning: 'bg-amber-400',
-    error: 'bg-rose-400',
-    ai: 'bg-indigo-400 animate-pulse',
+    brand: 'bg-violet-400',
+    success: 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]',
+    warning: 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]',
+    error: 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]',
+    ai: 'bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.8)] animate-pulse',
   };
 
   const sizeStyles = {
