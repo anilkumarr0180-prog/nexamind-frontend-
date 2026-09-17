@@ -75,7 +75,7 @@ export const SettingsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-xl bg-[#0e1322]/80 border border-white/[0.07] p-3.5 space-y-1">
                 <span className="text-[11px] text-slate-400">Provider & Model</span>
-                <p className="text-xs font-semibold text-slate-200">Ollama (llama3.2:3b)</p>
+                <p className="text-xs font-semibold text-slate-200">Configured via Backend Environment</p>
               </div>
               <div className="rounded-xl bg-[#0e1322]/80 border border-white/[0.07] p-3.5 space-y-1">
                 <span className="text-[11px] text-slate-400">Context Window</span>

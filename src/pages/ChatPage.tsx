@@ -43,7 +43,7 @@ export const ChatPage: React.FC = () => {
     isError: isMessagesError,
   } = useQuery({
     queryKey: chatKeys.messages(conversationId || ''),
-    queryFn: () => getConversationMessages(conversationId!),
+    queryFn: () => getConversationMessages(conversationId!, { limit: 100 }),
     enabled: !!conversationId,
   });
 
