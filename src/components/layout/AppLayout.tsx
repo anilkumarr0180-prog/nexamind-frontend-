@@ -93,11 +93,11 @@ export const AppLayout = () => {
   const getHeaderTitle = () => {
     if (activeConvId) {
       const activeConv = conversations.find((c) => c._id === activeConvId);
-      return activeConv ? activeConv.title : 'Chat Session';
+      return activeConv ? activeConv.title : '';
     }
     if (location.pathname === '/app/memories') return 'Cognitive Memories';
     if (location.pathname === '/app/settings') return 'Settings & Preferences';
-    return 'New Conversation';
+    return '';
   };
 
   const handleNewChat = () => {
@@ -358,7 +358,7 @@ export const AppLayout = () => {
       {/* Main Workspace Column */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#212121]">
         {/* Top Header */}
-        <header className="h-14 border-b border-[#2d2d2d] bg-[#212121] flex items-center justify-between px-4 sm:px-6 z-10 flex-shrink-0">
+        <header className="h-14 border-b border-[#2d2d2d] bg-[#212121] flex items-center justify-between px-6 z-10 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile menu trigger */}
             <button
@@ -372,9 +372,11 @@ export const AppLayout = () => {
             </button>
 
             {/* Title */}
-            <h1 className="text-sm font-medium text-[#ececec] tracking-tight truncate">
-              {getHeaderTitle()}
-            </h1>
+            {getHeaderTitle() ? (
+              <h1 className="text-sm font-medium text-[#ececec] tracking-tight truncate">
+                {getHeaderTitle()}
+              </h1>
+            ) : null}
           </div>
 
           {/* Useful Product Actions - ONLY Delete button, NO duplicate New Chat button */}
