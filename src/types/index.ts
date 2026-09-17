@@ -5,3 +5,4 @@ export * from './message';
 export * from './memory';
 export * from './token';
 export * from './ai';
+export * from './agent';

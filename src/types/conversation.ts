@@ -7,6 +7,9 @@ export interface Conversation {
   status: ConversationStatus;
   lastMessageAt: string | null;
   messageCount: number;
+  summary?: string | null;
+  summaryUpdatedAt?: string | null;
+  lastSummarizedMessageCount?: number;
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
