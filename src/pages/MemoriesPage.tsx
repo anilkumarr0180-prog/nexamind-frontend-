@@ -99,9 +99,9 @@ export const MemoriesPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-subtle">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-white/[0.06]">
         <div>
-          <h1 className="text-lg font-semibold text-slate-100 tracking-tight">
+          <h1 className="text-xl font-display font-bold text-white tracking-tight">
             Cognitive Memories
           </h1>
           <p className="mt-0.5 text-xs text-slate-400">
@@ -142,10 +142,10 @@ export const MemoriesPage: React.FC = () => {
           <button
             key={type}
             onClick={() => setSelectedType(type)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
               selectedType === type
-                ? 'bg-surface-elevated text-white border border-subtle shadow-subtle'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-surface'
+                ? 'bg-violet-600/25 text-violet-200 border border-violet-500/35 shadow-sm shadow-violet-950/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] border border-transparent'
             }`}
           >
             {type}
@@ -223,10 +223,10 @@ export const MemoriesPage: React.FC = () => {
 
       {/* Add Memory Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <Card className="w-full max-w-md p-6 space-y-4 shadow-elevated border-subtle">
-            <div className="flex items-center justify-between pb-2 border-b border-subtle">
-              <h2 className="text-sm font-semibold text-slate-100">Add Cognitive Memory</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <Card className="w-full max-w-md p-6 space-y-4 shadow-elevated border-white/[0.12] bg-[#12172a]/95 backdrop-blur-xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+              <h2 className="text-sm font-display font-semibold text-white">Add Cognitive Memory</h2>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="text-slate-400 hover:text-slate-200"
@@ -243,7 +243,7 @@ export const MemoriesPage: React.FC = () => {
                 <select
                   value={newType}
                   onChange={(e) => setNewType(e.target.value as MemoryType)}
-                  className="w-full rounded-lg bg-surface border border-default px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  className="w-full rounded-xl bg-[#0e1220] border border-white/[0.10] px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-violet-500/80 focus:ring-2 focus:ring-violet-500/20"
                 >
                   <option value="FACT">FACT (Information & Knowledge)</option>
                   <option value="PREFERENCE">PREFERENCE (User Habits & Style)</option>
@@ -262,7 +262,7 @@ export const MemoriesPage: React.FC = () => {
                   onChange={(e) => setNewContent(e.target.value)}
                   placeholder="e.g. User prefers concise responses with TypeScript examples..."
                   required
-                  className="w-full rounded-lg bg-surface border border-default px-3 py-2 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand-500 resize-none"
+                  className="w-full rounded-xl bg-[#0e1220] border border-white/[0.10] px-3.5 py-2 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-violet-500/80 focus:ring-2 focus:ring-violet-500/20 resize-none"
                 />
               </div>
 

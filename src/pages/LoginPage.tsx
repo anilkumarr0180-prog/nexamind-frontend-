@@ -65,26 +65,28 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-[#0b0f19] bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.15),transparent_70%),radial-gradient(ellipse_60%_50%_at_50%_110%,rgba(79,70,229,0.08),transparent_70%)] px-4 py-12 text-slate-100 font-sans relative overflow-hidden">
+    <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-[#0a0d14] bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(139,92,246,0.18),transparent_70%),radial-gradient(ellipse_60%_50%_at_50%_110%,rgba(99,102,241,0.10),transparent_70%)] px-4 py-12 text-slate-100 font-sans relative overflow-hidden">
       <div className="w-full max-w-[420px] space-y-6">
         {/* Brand Heading */}
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white shadow-lg shadow-brand-500/25 border border-brand-400/30 mb-1 transition-transform hover:scale-105 duration-200">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-500 to-cyan-400 p-[1px] shadow-glow-brand mb-1 transition-transform hover:scale-105 duration-200">
+            <div className="h-full w-full bg-[#121626] rounded-[15px] flex items-center justify-center">
+              <svg
+                className="w-6 h-6 text-violet-300"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-slate-100">
+          <h1 className="text-2xl sm:text-[28px] font-display font-bold tracking-tight text-white">
             Welcome to NexaMind
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">
@@ -93,7 +95,7 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Auth Card */}
-        <div className="rounded-2xl sm:rounded-3xl bg-[#131826]/95 backdrop-blur-sm border border-slate-800/90 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.65)] p-6 sm:p-8 space-y-5">
+        <div className="rounded-2xl sm:rounded-3xl bg-[#12172a]/85 backdrop-blur-xl border border-white/[0.12] shadow-2xl p-6 sm:p-8 space-y-5">
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {globalError && (
               <div

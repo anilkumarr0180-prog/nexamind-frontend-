@@ -10,15 +10,15 @@
   body {
     margin: 0;
     min-height: 100vh;
-    background-color: #090a0f;
-    color: #f8fafc;
+    background-color: #212121;
+    color: #ececec;
     overflow-x: hidden;
     font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Sleek custom scrollbars */
+  /* Sleek ChatGPT-style subtle scrollbars */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -27,24 +27,36 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.15);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.32);
+    background: rgba(255, 255, 255, 0.25);
   }
 }
 
 @layer utilities {
   .bg-canvas {
-    background-color: #090a0f;
+    background-color: #212121;
   }
 
   .glass-panel {
-    background-color: rgba(17, 19, 26, 0.75);
+    background-color: rgba(19, 24, 40, 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-card {
+    background-color: rgba(22, 28, 48, 0.65);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .glow-border {
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 0 0 15px -3px rgba(139, 92, 246, 0.15);
   }
 
   .focus-ring {

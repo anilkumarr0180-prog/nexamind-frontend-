@@ -20,8 +20,8 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       {/* Settings Header */}
-      <div className="pb-4 border-b border-subtle">
-        <h1 className="text-lg font-semibold text-slate-100 tracking-tight">
+      <div className="pb-4 border-b border-white/[0.06]">
+        <h1 className="text-xl font-display font-bold text-white tracking-tight">
           System & Account Settings
         </h1>
         <p className="mt-0.5 text-xs text-slate-400">
@@ -73,15 +73,15 @@ export const SettingsPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-lg bg-surface-muted border border-subtle p-3 space-y-1">
+              <div className="rounded-xl bg-[#0e1322]/80 border border-white/[0.07] p-3.5 space-y-1">
                 <span className="text-[11px] text-slate-400">Provider & Model</span>
                 <p className="text-xs font-semibold text-slate-200">Ollama (llama3.2:3b)</p>
               </div>
-              <div className="rounded-lg bg-surface-muted border border-subtle p-3 space-y-1">
+              <div className="rounded-xl bg-[#0e1322]/80 border border-white/[0.07] p-3.5 space-y-1">
                 <span className="text-[11px] text-slate-400">Context Window</span>
                 <p className="text-xs font-semibold text-slate-200">20 messages / 32,000 chars</p>
               </div>
-              <div className="rounded-lg bg-surface-muted border border-subtle p-3 space-y-1">
+              <div className="rounded-xl bg-[#0e1322]/80 border border-white/[0.07] p-3.5 space-y-1">
                 <span className="text-[11px] text-slate-400">Auto-Extraction</span>
                 <p className="text-xs font-semibold text-slate-200">Bounded Semantic Memory</p>
               </div>
@@ -98,10 +98,10 @@ export const SettingsPage: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-surface-muted border border-subtle">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#0e1322]/80 border border-white/[0.07]">
               <div className="space-y-0.5">
-                <p className="text-xs font-medium text-slate-200">Available Balance</p>
-                <p className="text-sm font-mono font-bold text-brand-300">{currentBalance} Credits</p>
+                <p className="text-xs font-medium text-slate-300">Available Balance</p>
+                <p className="text-sm font-mono font-bold text-violet-300">{currentBalance} Credits</p>
               </div>
               <Badge variant="neutral" size="sm">Cost: 1 credit / turn</Badge>
             </div>
@@ -117,7 +117,7 @@ export const SettingsPage: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-surface-muted border border-subtle">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#0e1322]/80 border border-white/[0.07]">
               <div className="space-y-0.5">
                 <p className="text-[11px] text-slate-400">VITE_API_BASE_URL</p>
                 <p className="text-xs font-mono text-slate-200">

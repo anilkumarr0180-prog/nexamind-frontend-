@@ -59,6 +59,7 @@ export const ChatPage: React.FC = () => {
     inputRef.current?.focus();
     setErrorMessage(null);
     setOptimisticMessages([]);
+    setIsSubmitting(false);
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
@@ -134,11 +135,14 @@ export const ChatPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
       queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
 
+      setOptimisticMessages([]);
+      setIsSubmitting(false);
       navigate(`/app/chat/${createdConv._id}`, { replace: true });
     } catch (err: unknown) {
       const classified = classifyApiError(err, 'Failed to start conversation. Please try again.');
       setErrorMessage(classified.message);
       setOptimisticMessages([]);
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -160,26 +164,26 @@ export const ChatPage: React.FC = () => {
   const hasMessages = backendMessages.length > 0 || optimisticMessages.length > 0;
 
   return (
-    <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-canvas">
+    <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-[#212121]">
       {/* Messages Stream Area */}
       <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
         {isLoadingMessages && conversationId ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-3">
-            <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-slate-400">Loading conversation...</p>
+            <div className="w-6 h-6 border-2 border-[#b4b4b4] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-[#8e8e8e]">Loading conversation...</p>
           </div>
         ) : isMessagesError && conversationId ? (
           <div className="flex-1 flex items-center justify-center p-4">
-            <div className="max-w-md w-full p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs text-center">
+            <div className="max-w-md w-full p-4 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs text-center">
               Failed to load conversation messages. Please try refreshing.
             </div>
           </div>
         ) : !hasMessages ? (
-          /* Clean, Minimal Empty State */
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-12 space-y-3.5 my-auto select-none max-w-4xl mx-auto w-full">
-            <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-surface-elevated border border-white/10 shadow-subtle text-brand-400 mb-1">
+          /* Clean ChatGPT-Style Empty State */
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-12 space-y-4 my-auto select-none max-w-2xl mx-auto w-full">
+            <div className="h-10 w-10 rounded-full bg-[#2f2f2f] flex items-center justify-center text-white mb-1 shadow-sm">
               <svg
-                className="w-7 h-7 text-brand-400"
+                className="w-5 h-5 text-white"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -188,31 +192,48 @@ export const ChatPage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-100">
-              How can I help you today?
+
+            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#ececec]">
+              What can I help with today?
             </h2>
-            <p className="text-sm text-slate-400 max-w-md leading-relaxed">
-              Ask questions, analyze concepts, or brainstorm ideas with persistent cognitive recall.
-            </p>
+
+            {/* Starter Suggestion Pills */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg pt-3">
+              {[
+                'Explain quantum computing in simple terms',
+                'Write a clean React hook with TypeScript',
+                'Summarize key ideas from an article',
+                'Help me brainstorm creative ideas',
+              ].map((promptText) => (
+                <button
+                  key={promptText}
+                  type="button"
+                  onClick={() => handleSendMessage(promptText)}
+                  className="text-left p-3 rounded-2xl bg-[#212121] hover:bg-[#2f2f2f] border border-[#2f2f2f] hover:border-[#424242] transition-colors text-xs text-[#b4b4b4] hover:text-[#ececec] cursor-pointer"
+                >
+                  {promptText}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
-          /* Natural ChatGPT-style message stream with ~800-900px comfortable width */
-          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6 sm:space-y-8">
+          /* Natural message stream (~768-800px width like ChatGPT) */
+          <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6 sm:space-y-7">
             {backendMessages.map((msg) => {
               const isUser = msg.role === 'USER';
 
               return isUser ? (
                 <div key={msg._id} className="flex justify-end animate-in fade-in duration-150">
-                  <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-tr-xs bg-[#1a1d29] border border-white/[0.08] px-4 sm:px-5 py-3 text-sm sm:text-[15px] text-slate-100 shadow-subtle break-words whitespace-pre-wrap leading-relaxed">
+                  <div className="max-w-[85%] sm:max-w-[70%] rounded-[24px] bg-[#2f2f2f] text-[#ececec] px-5 py-2.5 text-sm sm:text-[15px] break-words whitespace-pre-wrap leading-relaxed">
                     {msg.content}
                   </div>
                 </div>
               ) : (
                 <div key={msg._id} className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">
-                  {/* NexaMind Emblem Avatar */}
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-elevated border border-white/10 text-brand-400 flex-shrink-0 mt-0.5 shadow-subtle">
+                  {/* Clean NexaMind Avatar */}
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2f2f2f] text-white flex-shrink-0 mt-0.5">
                     <svg
-                      className="w-4 h-4 text-brand-400"
+                      className="w-3.5 h-3.5 text-white"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -222,11 +243,8 @@ export const ChatPage: React.FC = () => {
                     </svg>
                   </div>
 
-                  {/* Clean Markdown Content */}
-                  <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
-                    <div className="text-xs font-semibold tracking-wide text-slate-300 select-none">
-                      NexaMind
-                    </div>
+                  {/* Clean Content */}
+                  <div className="flex-1 min-w-0 space-y-1 pt-0.5">
                     <MarkdownMessage content={msg.content} />
                   </div>
                 </div>
@@ -236,7 +254,7 @@ export const ChatPage: React.FC = () => {
             {/* Optimistic Pending User Message */}
             {optimisticMessages.map((msg) => (
               <div key={msg.id} className="flex justify-end animate-in fade-in duration-150">
-                <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-tr-xs bg-[#1a1d29] border border-white/[0.08] px-4 sm:px-5 py-3 text-sm sm:text-[15px] text-slate-100 shadow-subtle break-words whitespace-pre-wrap leading-relaxed opacity-85">
+                <div className="max-w-[85%] sm:max-w-[70%] rounded-[24px] bg-[#2f2f2f] text-[#ececec] px-5 py-2.5 text-sm sm:text-[15px] break-words whitespace-pre-wrap leading-relaxed opacity-85">
                   {msg.content}
                 </div>
               </div>
@@ -245,9 +263,9 @@ export const ChatPage: React.FC = () => {
             {/* Subtle Assistant Typing Indicator */}
             {isSubmitting && (
               <div className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-elevated border border-white/10 text-brand-400 flex-shrink-0 mt-0.5 shadow-subtle">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2f2f2f] text-white flex-shrink-0 mt-0.5">
                   <svg
-                    className="w-4 h-4 text-brand-400"
+                    className="w-3.5 h-3.5 text-white"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -256,14 +274,11 @@ export const ChatPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <div className="flex-1 min-w-0 space-y-1 pt-0.5">
-                  <div className="text-xs font-semibold tracking-wide text-slate-300 select-none">
-                    NexaMind
-                  </div>
-                  <div className="flex items-center gap-1.5 py-2 px-0.5">
-                    <span className="w-2 h-2 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-2 h-2 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-2 h-2 rounded-full bg-brand-400 animate-bounce" />
+                <div className="flex-1 min-w-0 space-y-1 pt-1">
+                  <div className="flex items-center gap-1.5 py-1 px-0.5">
+                    <span className="w-2 h-2 rounded-full bg-[#8e8e8e] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-2 h-2 rounded-full bg-[#8e8e8e] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-2 h-2 rounded-full bg-[#8e8e8e] animate-bounce" />
                   </div>
                 </div>
               </div>
@@ -276,12 +291,12 @@ export const ChatPage: React.FC = () => {
 
       {/* Error Alert */}
       {errorMessage && (
-        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 mb-2 flex-shrink-0">
-          <div className="rounded-xl bg-rose-500/10 border border-rose-500/25 px-4 py-2.5 text-xs text-rose-300 flex items-center justify-between animate-in fade-in">
+        <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 mb-2 flex-shrink-0">
+          <div className="rounded-xl bg-rose-500/15 border border-rose-500/30 px-4 py-2.5 text-xs text-rose-200 flex items-center justify-between animate-in fade-in shadow-sm">
             <span>{errorMessage}</span>
             <button
               onClick={() => setErrorMessage(null)}
-              className="text-rose-400 hover:text-rose-200 ml-2 cursor-pointer"
+              className="text-rose-300 hover:text-white ml-2 cursor-pointer"
               aria-label="Dismiss error"
             >
               ✕
@@ -290,15 +305,15 @@ export const ChatPage: React.FC = () => {
         </div>
       )}
 
-      {/* Prominent Bottom Chat Composer (~800-900px wide, centered) */}
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6 pt-1 flex-shrink-0">
-        <div className="relative rounded-2xl sm:rounded-3xl bg-surface-elevated/90 backdrop-blur-md border border-white/10 shadow-elevated focus-within:border-brand-500/60 focus-within:ring-2 focus-within:ring-brand-500/20 transition-all">
+      {/* Prominent Bottom Chat Composer (Exact ChatGPT style) */}
+      <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6 pt-1 flex-shrink-0">
+        <div className="relative rounded-[26px] bg-[#2f2f2f] border border-white/[0.08] focus-within:border-white/20 transition-all">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="flex items-end gap-2 p-2.5 sm:p-3"
+            className="flex items-end gap-2 p-2 sm:p-2.5"
           >
             <textarea
               ref={inputRef}
@@ -308,28 +323,28 @@ export const ChatPage: React.FC = () => {
               onKeyDown={handleKeyDown}
               placeholder="Message NexaMind..."
               disabled={isSubmitting}
-              className="flex-1 max-h-48 min-h-[34px] resize-none bg-transparent px-3 py-1.5 text-sm sm:text-[15px] text-slate-100 placeholder-slate-400 focus:outline-none disabled:opacity-50 leading-relaxed"
+              className="flex-1 max-h-48 min-h-[36px] resize-none bg-transparent px-3.5 py-1.5 text-sm sm:text-[15px] text-[#ececec] placeholder-[#8e8e8e] focus:outline-none disabled:opacity-50 leading-relaxed"
             />
             <button
               type="submit"
               disabled={isSubmitting || !inputValue.trim()}
               aria-label="Send message"
-              className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-brand-600 hover:bg-brand-500 active:bg-brand-700 disabled:opacity-25 disabled:hover:bg-brand-600 text-white flex items-center justify-center transition-all shadow-subtle mb-0.5 cursor-pointer disabled:cursor-not-allowed"
+              className="flex-shrink-0 h-8 w-8 rounded-full bg-white text-black hover:bg-[#d9d9d9] disabled:bg-[#424242] disabled:text-[#8e8e8e] flex items-center justify-center transition-all mb-0.5 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
-                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.6}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
                 </svg>
               )}
             </button>
           </form>
         </div>
-        <p className="text-[11px] text-center text-slate-400 mt-2 select-none">
+        <p className="text-[11px] text-center text-[#8e8e8e] mt-2 select-none">
           1 credit per query • NexaMind can make mistakes. Verify important info.
         </p>
       </div>
