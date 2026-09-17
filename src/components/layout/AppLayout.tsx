@@ -164,7 +164,7 @@ export const AppLayout = () => {
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col justify-between bg-[#171717] border-r border-[#262626] select-none">
+    <div className="flex h-full w-full flex-col justify-between bg-[#171717] border-r border-[#262626] select-none overflow-hidden box-border">
       <div className="flex flex-col flex-1 min-h-0">
         {/* Brand Header */}
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#262626]">
@@ -338,7 +338,7 @@ export const AppLayout = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#212121] text-[#ececec] font-sans">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 flex-shrink-0 z-20">
+      <aside className="hidden md:flex w-64 min-w-[16rem] max-w-[16rem] flex-shrink-0 overflow-hidden box-border">
         {sidebarContent}
       </aside>
 
@@ -358,7 +358,7 @@ export const AppLayout = () => {
       {/* Main Workspace Column */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#212121]">
         {/* Top Header */}
-        <header className="h-14 border-b border-[#2d2d2d] bg-[#212121] flex items-center justify-between px-6 z-10 flex-shrink-0">
+        <header className="h-14 border-b border-[#2d2d2d] bg-[#212121] flex items-center justify-between px-6 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile menu trigger */}
             <button
