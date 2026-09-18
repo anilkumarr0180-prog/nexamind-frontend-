@@ -127,6 +127,8 @@ export const streamAIChatMessage = async (
                 }
               } else if (payload.type === 'done') {
                 callbacks.onDone(payload);
+              } else if (payload.type === 'aborted') {
+                return;
               } else if (payload.type === 'error') {
                 const err = new Error(payload.error?.message || 'Streaming failed');
                 callbacks.onError?.(err);
@@ -138,6 +140,32 @@ export const streamAIChatMessage = async (
               }
             }
           }
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      for (const line of buffer.trim().split('\n')) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6).trim();
+          try {
+            const payload = JSON.parse(jsonStr);
+            if (payload.type === 'start') {
+              callbacks.onStart?.(payload);
+            } else if (payload.type === 'chunk') {
+              if (payload.content) {
+                callbacks.onChunk(payload.content);
+              }
+            } else if (payload.type === 'done') {
+              callbacks.onDone(payload);
+            } else if (payload.type === 'aborted') {
+              return;
+            } else if (payload.type === 'error') {
+              const err = new Error(payload.error?.message || 'Streaming failed');
+              callbacks.onError?.(err);
+              throw err;
+            }
+          } catch {}
         }
       }
     }
