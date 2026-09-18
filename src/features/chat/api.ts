@@ -57,22 +57,45 @@ export const streamAIChatMessage = async (
   callbacks: StreamChatCallbacks,
   signal?: AbortSignal,
 ): Promise<void> => {
+  if (signal?.aborted) {
+    return;
+  }
+
   const token = getAuthToken();
   const url = `${API_BASE_URL}/ai/chat`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      ...data,
-      stream: true,
-    }),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        ...data,
+        stream: true,
+      }),
+      signal,
+    });
+  } catch (fetchErr: unknown) {
+    if (
+      signal?.aborted ||
+      (fetchErr instanceof Error &&
+        (fetchErr.name === 'AbortError' ||
+          fetchErr.message.toLowerCase().includes('aborted')))
+    ) {
+      return;
+    }
+    const err = fetchErr instanceof Error ? fetchErr : new Error('Network error during streaming');
+    callbacks.onError?.(err);
+    throw err;
+  }
+
+  if (signal?.aborted) {
+    return;
+  }
 
   if (!response.ok) {
     let errorMessage = `HTTP error ${response.status}`;
@@ -109,15 +132,19 @@ export const streamAIChatMessage = async (
     } else if (payload.type === 'done') {
       doneReceived = true;
       callbacks.onDone(payload);
+      return true; // Completed successfully, stop processing
     } else if (payload.type === 'aborted') {
-      return true;
+      return true; // Stream aborted by server, stop processing
     } else if (payload.type === 'error') {
       if (!doneReceived && !errorEmitted) {
         errorEmitted = true;
         const err = new Error(payload.error?.message || 'Streaming failed');
+        if (payload.error?.code) (err as any).code = payload.error.code;
+        if (payload.error?.statusCode) (err as any).statusCode = payload.error.statusCode;
         callbacks.onError?.(err);
         throw err;
       }
+      return true;
     }
     return false;
   };
@@ -125,7 +152,7 @@ export const streamAIChatMessage = async (
   try {
     while (true) {
       if (signal?.aborted) {
-        break;
+        return;
       }
 
       const { done, value } = await reader.read();
@@ -148,8 +175,9 @@ export const streamAIChatMessage = async (
             } catch {
               continue;
             }
-            const isAborted = processJsonPayload(payload);
-            if (isAborted) return;
+            // Process payload outside try/catch so error events thrown from processJsonPayload are not swallowed
+            const shouldStop = processJsonPayload(payload);
+            if (shouldStop) return;
           }
         }
       }
@@ -165,15 +193,22 @@ export const streamAIChatMessage = async (
           } catch {
             continue;
           }
-          const isAborted = processJsonPayload(payload);
-          if (isAborted) return;
+          const shouldStop = processJsonPayload(payload);
+          if (shouldStop) return;
         }
       }
     }
   } catch (streamErr: unknown) {
-    if (signal?.aborted || doneReceived) {
+    const isAbort =
+      signal?.aborted ||
+      (streamErr instanceof Error &&
+        (streamErr.name === 'AbortError' ||
+          streamErr.message.toLowerCase().includes('aborted')));
+
+    if (isAbort || doneReceived) {
       return;
     }
+
     if (!errorEmitted) {
       errorEmitted = true;
       if (streamErr instanceof Error) {
