@@ -9,16 +9,26 @@ export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; password?: string }>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
-    const errors: { email?: string; password?: string } = {};
+    const errors: { name?: string; email?: string; password?: string } = {};
+    const trimmedName = name.trim();
     const normalizedEmail = email.trim();
+
+    if (!trimmedName) {
+      errors.name = 'Name is required';
+    } else if (trimmedName.length < 2) {
+      errors.name = 'Name must be at least 2 characters';
+    } else if (trimmedName.length > 100) {
+      errors.name = 'Name cannot exceed 100 characters';
+    }
 
     if (!normalizedEmail) {
       errors.email = 'Email address is required';
@@ -50,6 +60,7 @@ export const RegisterPage: React.FC = () => {
 
     try {
       await register({
+        name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
       });
@@ -120,6 +131,25 @@ export const RegisterPage: React.FC = () => {
             )}
 
             <Input
+              id="name"
+              label="Name / Display Name"
+              type="text"
+              autoComplete="name"
+              placeholder="e.g. Alex Rivera"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (fieldErrors.name) {
+                  setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                }
+              }}
+              error={fieldErrors.name}
+              disabled={isSubmitting}
+              required
+            />
+
+            <Input
+              id="email"
               label="Email Address"
               type="email"
               autoComplete="email"
@@ -137,6 +167,7 @@ export const RegisterPage: React.FC = () => {
             />
 
             <Input
+              id="password"
               label="Password"
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
@@ -216,4 +247,3 @@ export const RegisterPage: React.FC = () => {
     </div>
   );
 };
-
