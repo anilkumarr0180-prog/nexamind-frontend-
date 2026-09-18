@@ -70,7 +70,11 @@ export const AppLayout = () => {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -274,9 +278,8 @@ export const AppLayout = () => {
   const handleDeleteConversation = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (window.confirm("Delete this conversation?")) {
-      deleteMutation.mutate(id);
-    }
+    setActiveMenuId(null);
+    setDeleteConfirmId(id);
   };
 
   const getHeaderTitle = () => {
@@ -299,7 +302,7 @@ export const AppLayout = () => {
         <form
           key={chat._id}
           onSubmit={(e) => handleSaveRename(e, chat._id)}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-[#262626] border border-white/20"
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-[#1e1e26] border border-white/20"
           onClick={(e) => e.stopPropagation()}
         >
           <input
@@ -310,7 +313,7 @@ export const AppLayout = () => {
             onKeyDown={(e) => {
               if (e.key === "Escape") setEditingChatId(null);
             }}
-            className="flex-1 min-w-0 bg-transparent text-xs text-white focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
             placeholder="Conversation title"
             maxLength={200}
           />
@@ -328,7 +331,7 @@ export const AppLayout = () => {
           <button
             type="button"
             onClick={() => setEditingChatId(null)}
-            className="p-1 rounded text-[#8e8e8e] hover:text-white hover:bg-[#333333] cursor-pointer"
+            className="p-1 rounded text-[#9e9ea8] hover:text-white hover:bg-[#2a2a34] cursor-pointer"
             title="Cancel"
             aria-label="Cancel"
           >
@@ -346,9 +349,9 @@ export const AppLayout = () => {
           to={`/app/chat/${chat._id}`}
           onClick={() => setMobileMenuOpen(false)}
           aria-current={isCurrent ? "page" : undefined}
-          className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs transition-colors duration-150 ${isCurrent
-              ? "bg-[#212121] text-[#ececec] font-medium"
-              : "text-[#b4b4b4] hover:bg-[#212121] hover:text-[#ececec]"
+          className={`flex items-center justify-between rounded-lg px-3 py-2.5 text-[13px] transition-colors duration-150 ${isCurrent
+              ? "bg-white/[0.07] text-[#f0f0f5] font-medium"
+              : "text-[#c0c0cc] hover:bg-white/[0.05] hover:text-[#f0f0f5]"
             }`}
         >
           <span className="truncate flex-1 min-w-0 pr-1 text-left" title={chat.title}>
@@ -363,7 +366,7 @@ export const AppLayout = () => {
               e.stopPropagation();
               setActiveMenuId(isMenuOpen ? null : chat._id);
             }}
-            className={`p-1 rounded text-[#8e8e8e] hover:text-white hover:bg-[#2f2f2f] transition-all flex-shrink-0 cursor-pointer ${isMenuOpen || isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            className={`p-1 rounded text-[#9e9ea8] hover:text-white hover:bg-white/[0.08] transition-all flex-shrink-0 cursor-pointer ${isMenuOpen || isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
               }`}
             title="Options"
             aria-label="Conversation options"
@@ -383,15 +386,15 @@ export const AppLayout = () => {
         {isMenuOpen && (
           <div
             ref={menuRef}
-            className="absolute right-2 top-8 z-30 w-36 rounded-xl bg-[#262626] border border-white/10 shadow-xl py-1 text-xs text-[#ececec] animate-in fade-in zoom-in-95"
+            className="absolute right-2 top-8 z-30 w-36 rounded-xl bg-[#1e1e26] border border-white/[0.12] shadow-xl py-1 text-[13px] text-[#e8e8f0] animate-in fade-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={(e) => handleStartRename(e, chat)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#333333] hover:text-white text-left transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.07] hover:text-white text-left transition-colors cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5 text-[#8e8e8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5 text-[#9e9ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               <span>Rename</span>
@@ -401,9 +404,9 @@ export const AppLayout = () => {
               <button
                 type="button"
                 onClick={(e) => handleUnarchiveConversation(e, chat._id)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#333333] hover:text-white text-left transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.07] hover:text-white text-left transition-colors cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5 text-[#8e8e8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-[#9e9ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                 </svg>
                 <span>Unarchive</span>
@@ -412,9 +415,9 @@ export const AppLayout = () => {
               <button
                 type="button"
                 onClick={(e) => handleArchiveConversation(e, chat._id)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#333333] hover:text-white text-left transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.07] hover:text-white text-left transition-colors cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5 text-[#8e8e8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-[#9e9ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                 </svg>
                 <span>Archive</span>
@@ -444,7 +447,7 @@ export const AppLayout = () => {
 
     return (
       <div key={title} className="space-y-0.5 py-1">
-        <div className="px-3 pt-2 pb-1 text-[11px] font-medium text-[#8e8e8e] select-none text-left">
+        <div className="px-3 pt-3 pb-1.5 text-[11px] font-semibold text-[#7878a0] uppercase tracking-widest select-none text-left">
           {title}
         </div>
         {items.map((chat) => renderConversationItem(chat))}
@@ -453,16 +456,16 @@ export const AppLayout = () => {
   };
 
   const sidebarContent = (
-    <div className="flex h-full w-full flex-col justify-between bg-[#171717] border-r border-[#262626] select-none overflow-hidden box-border">
+    <div className="flex h-full w-full flex-col justify-between bg-[#0f0f13] border-r border-white/[0.07] select-none overflow-hidden box-border">
       <div className="flex flex-col flex-1 min-h-0">
         {/* Brand Header */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#262626]">
+        <div className="flex items-center justify-between px-3 py-3">
           <Link
             to="/app"
             onClick={() => setMobileMenuOpen(false)}
             className="flex items-center gap-2.5 group"
           >
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-b from-zinc-700 to-zinc-800 border border-white/15 flex items-center justify-center text-white shadow-xs group-hover:border-white/30 transition-all">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/20 flex items-center justify-center text-white shadow-md shadow-violet-900/30 group-hover:shadow-violet-700/40 transition-all">
               <svg
                 className="w-4 h-4 text-white"
                 fill="none"
@@ -477,61 +480,105 @@ export const AppLayout = () => {
                 />
               </svg>
             </div>
-            <span className="text-sm font-semibold tracking-tight text-[#f4f4f5] group-hover:text-white transition-colors">
+            <span className="text-[15px] font-bold tracking-tight text-white transition-colors">
               NexaMind
             </span>
           </Link>
 
-          {/* Close button for mobile */}
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden rounded-lg p-1.5 text-[#8e8e8e] hover:text-white hover:bg-[#212121] transition-colors"
-            aria-label="Close navigation"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Sidebar collapse button — desktop only */}
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              className="hidden md:flex rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.07] transition-colors"
+              aria-label="Collapse sidebar"
+              title="Close sidebar"
+            >
+              {/* Panel / sidebar-collapse icon */}
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18" />
+              </svg>
+            </button>
+            {/* Close button for mobile */}
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden rounded-lg p-1.5 text-[#9e9ea8] hover:text-white hover:bg-white/[0.06] transition-colors"
+              aria-label="Close navigation"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* Primary Action: New Chat */}
-        <div className="p-3">
+        {/* ChatGPT-style: New chat + Search chats */}
+        <div className="px-2 pb-1 space-y-0.5">
+          {/* New chat */}
           <button
             type="button"
             onClick={handleNewChat}
             disabled={isCreatingChat}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#252528] hover:bg-[#2d2d32] active:scale-[0.98] text-[#f4f4f5] hover:text-white text-xs font-medium border border-white/[0.12] hover:border-white/[0.22] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] transition-all cursor-pointer disabled:opacity-50"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#c8c8e0] hover:bg-white/[0.07] hover:text-white text-sm font-normal transition-all cursor-pointer disabled:opacity-50 group"
           >
             {isCreatingChat ? (
-              <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
             ) : (
-              <svg
-                className="w-4 h-4 text-[#d4d4d8]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              <svg className="w-4.5 h-4.5 flex-shrink-0 opacity-80 group-hover:opacity-100" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             )}
-            <span className="font-medium text-[#f4f4f5] tracking-tight">New Chat</span>
+            <span>New chat</span>
           </button>
+
+          {/* Search chats */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSearchActive((prev) => !prev);
+              setSearchQuery("");
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-normal transition-all cursor-pointer group ${
+              isSearchActive
+                ? "bg-white/[0.07] text-white"
+                : "text-[#c8c8e0] hover:bg-white/[0.07] hover:text-white"
+            }`}
+          >
+            <svg className="w-4.5 h-4.5 flex-shrink-0 opacity-80 group-hover:opacity-100" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <span>Search chats</span>
+          </button>
+
+          {/* Search input — appears when Search chats is active */}
+          {isSearchActive && (
+            <div className="px-1 pt-1 pb-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") { setIsSearchActive(false); setSearchQuery(""); } }}
+                placeholder="Search conversations..."
+                className="w-full bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-[#e8e8f0] placeholder-[#60608a] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
+              />
+            </div>
+          )}
         </div>
 
         {/* Conversation History */}
         <div className="px-2 flex-1 min-h-0 overflow-y-auto">
           {isLoadingConversations ? (
             <div className="space-y-2.5 p-3">
-              <div className="h-4 bg-[#262626] rounded animate-pulse w-20 mb-3" />
-              <div className="h-7 bg-[#212121] rounded-lg animate-pulse w-full" />
-              <div className="h-7 bg-[#212121] rounded-lg animate-pulse w-5/6" />
-              <div className="h-7 bg-[#212121] rounded-lg animate-pulse w-3/4" />
-              <div className="h-4 bg-[#262626] rounded animate-pulse w-24 mt-4 mb-3" />
-              <div className="h-7 bg-[#212121] rounded-lg animate-pulse w-full" />
+              <div className="h-3 bg-white/[0.06] rounded animate-pulse w-20 mb-3" />
+              <div className="h-8 bg-white/[0.04] rounded-lg animate-pulse w-full" />
+              <div className="h-8 bg-white/[0.04] rounded-lg animate-pulse w-5/6" />
+              <div className="h-8 bg-white/[0.04] rounded-lg animate-pulse w-3/4" />
+              <div className="h-3 bg-white/[0.06] rounded animate-pulse w-24 mt-4 mb-3" />
+              <div className="h-8 bg-white/[0.04] rounded-lg animate-pulse w-full" />
             </div>
           ) : isConversationsError ? (
             <div className="px-3 py-6 text-center space-y-2">
@@ -539,14 +586,30 @@ export const AppLayout = () => {
               <button
                 type="button"
                 onClick={() => refetchConversations()}
-                className="px-2.5 py-1 text-xs rounded bg-[#2f2f2f] hover:bg-[#383838] text-[#ececec] transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-xs rounded bg-white/[0.08] hover:bg-white/[0.12] text-[#e8e8f0] transition-colors cursor-pointer"
               >
                 Retry
               </button>
             </div>
           ) : activeConversations.length === 0 && archivedConversations.length === 0 ? (
-            <div className="px-3 py-8 text-center text-xs text-[#8e8e8e]">
+            <div className="px-3 py-10 text-center text-sm text-[#7878a0]">
               No conversations yet
+            </div>
+          ) : searchQuery.trim() ? (
+            /* Search results */
+            <div className="space-y-0.5 py-1">
+              <div className="px-3 pt-3 pb-1.5 text-[11px] font-semibold text-[#7878a0] uppercase tracking-widest select-none text-left">
+                Results
+              </div>
+              {activeConversations.filter((c) =>
+                c.title.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 ? (
+                <div className="px-3 py-6 text-center text-sm text-[#7878a0]">No matches found</div>
+              ) : (
+                activeConversations
+                  .filter((c) => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((chat) => renderConversationItem(chat))
+              )}
             </div>
           ) : (
             <div className="space-y-1">
@@ -561,7 +624,7 @@ export const AppLayout = () => {
                   <button
                     type="button"
                     onClick={() => setIsArchivedExpanded(!isArchivedExpanded)}
-                    className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-[#8e8e8e] hover:text-[#ececec] transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#7878a0] hover:text-[#c0c0cc] transition-colors cursor-pointer"
                   >
                     <span>Archived ({archivedConversations.length})</span>
                     <svg
@@ -586,19 +649,19 @@ export const AppLayout = () => {
         </div>
 
         {/* Secondary Navigation: Memories & Settings */}
-        <div className="px-2 py-2 border-t border-[#262626] space-y-0.5">
+        <div className="px-2 py-2.5 border-t border-white/[0.07] space-y-0.5">
           <NavLink
             to="/app/memories"
             onClick={() => setMobileMenuOpen(false)}
             className={({ isActive }) =>
-              `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isActive
+              `flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isActive
                 ? "bg-white/[0.08] text-white"
-                : "text-[#a1a1aa] hover:bg-white/[0.05] hover:text-white"
+                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
               }`
             }
           >
             <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4 text-[#a1a1aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               <span>Memories</span>
@@ -614,14 +677,14 @@ export const AppLayout = () => {
             to="/app/settings"
             onClick={() => setMobileMenuOpen(false)}
             className={({ isActive }) =>
-              `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isActive
+              `flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isActive
                 ? "bg-white/[0.08] text-white"
-                : "text-[#a1a1aa] hover:bg-white/[0.05] hover:text-white"
+                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
               }`
             }
           >
             <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4 text-[#a1a1aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -632,17 +695,17 @@ export const AppLayout = () => {
       </div>
 
       {/* Account & Usage Footer */}
-      <div className="p-3 border-t border-[#262626]">
+      <div className="p-3.5 border-t border-white/[0.07]">
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-7 w-7 rounded-full bg-gradient-to-b from-zinc-700 to-zinc-800 border border-white/10 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-700 to-indigo-800 border border-white/15 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
               {(user?.name || user?.email || "U")[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-[#f4f4f5] truncate leading-tight" title={user?.name || user?.email || "Nexa User"}>
+              <p className="text-sm font-semibold text-[#f0f0f8] truncate leading-tight" title={user?.name || user?.email || "Nexa User"}>
                 {user?.name || user?.email || "Nexa User"}
               </p>
-              <p className="text-[11px] font-mono text-[#a1a1aa] leading-tight mt-0.5">
+              <p className="text-[11px] font-mono text-[#7878a0] leading-tight mt-0.5">
                 {currentBalance} credits
               </p>
             </div>
@@ -652,7 +715,7 @@ export const AppLayout = () => {
             onClick={handleLogout}
             title="Sign out"
             aria-label="Sign out"
-            className="rounded-lg p-1.5 text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0 cursor-pointer"
+            className="rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0 cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -669,9 +732,9 @@ export const AppLayout = () => {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#18181b] text-[#f4f4f5] font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#16161a] text-[#e8e8f0] font-sans">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 min-w-[16rem] max-w-[16rem] flex-shrink-0 overflow-hidden box-border">
+      <aside className={`hidden md:flex w-64 min-w-[16rem] max-w-[16rem] flex-shrink-0 overflow-hidden box-border transition-all duration-300 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
         {sidebarContent}
       </aside>
 
@@ -689,14 +752,28 @@ export const AppLayout = () => {
       )}
 
       {/* Main Workspace Column */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#18181b]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#16161a]">
         {/* Top Header */}
-        <header className="h-14 border-b border-white/[0.06] bg-[#18181b]/80 backdrop-blur-md flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="h-14 border-b border-white/[0.07] bg-[#16161a]/90 backdrop-blur-md flex items-center justify-between px-4 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Expand sidebar button — desktop only, shown when collapsed */}
+            {sidebarCollapsed && (
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="hidden md:flex rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.07] transition-colors flex-shrink-0"
+                aria-label="Open sidebar"
+                title="Open sidebar"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <rect x="3" y="3" width="18" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18" />
+                </svg>
+              </button>
+            )}
             {/* Mobile menu trigger */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden rounded-lg p-1.5 text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0"
+              className="md:hidden rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0"
               aria-label="Open sidebar menu"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -706,7 +783,7 @@ export const AppLayout = () => {
 
             {/* Title */}
             {getHeaderTitle() ? (
-              <h1 className="text-sm font-medium text-[#f4f4f5] tracking-tight truncate" title={getHeaderTitle()}>
+              <h1 className="text-[15px] font-semibold text-[#f0f0f8] tracking-tight truncate" title={getHeaderTitle()}>
                 {getHeaderTitle()}
               </h1>
             ) : null}
@@ -726,7 +803,7 @@ export const AppLayout = () => {
                   }}
                   title="Rename this conversation"
                   aria-label="Rename this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#9090b0] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -744,7 +821,7 @@ export const AppLayout = () => {
                   onClick={(e) => handleArchiveConversation(e, activeConvId)}
                   title="Archive this conversation"
                   aria-label="Archive this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#9090b0] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -781,12 +858,54 @@ export const AppLayout = () => {
 
         {/* Dynamic Route Content */}
         <main
-          className={`flex-1 flex flex-col min-h-0 bg-[#18181b] ${isChatRoute ? "overflow-hidden" : "overflow-y-auto"
+          className={`flex-1 flex flex-col min-h-0 bg-[#16161a] ${isChatRoute ? "overflow-hidden" : "overflow-y-auto"
             }`}
         >
           <Outlet />
         </main>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteConfirmId(null)}
+          />
+          {/* Modal Card */}
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-[#1a1a22] border border-white/[0.12] shadow-2xl shadow-black/60 p-6 animate-in fade-in zoom-in-95 duration-150">
+            <h2 className="text-base font-semibold text-white mb-1">Delete chat?</h2>
+            <p className="text-sm text-[#9090b0] mb-6 leading-relaxed">
+              This will permanently delete{" "}
+              <span className="text-[#c8c8e0] font-medium">
+                {allConversations.find((c) => c._id === deleteConfirmId)?.title || "this conversation"}
+              </span>
+              . This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-[#c8c8e0] bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteMutation.mutate(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                }}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-rose-600 hover:bg-rose-500 border border-rose-500/50 hover:border-rose-400/60 transition-all cursor-pointer disabled:opacity-60 shadow-sm shadow-rose-900/40"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

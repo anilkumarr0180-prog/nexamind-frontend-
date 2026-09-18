@@ -486,16 +486,16 @@ export const ChatPage: React.FC = () => {
     backendMessages.length > 0 || visibleOptimisticMessages.length > 0;
 
   return (
-    <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-[#18181b] relative">
+    <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-[#16161a] relative">
       {/* Subtle ambient lighting mesh */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_700px_450px_at_50%_-100px,rgba(120,119,198,0.08),transparent_70%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_800px_500px_at_50%_-80px,rgba(139,92,246,0.07),transparent_70%)]" />
 
       {/* Messages Stream Area */}
       <div className="flex-1 overflow-y-auto min-h-0 flex flex-col relative z-10">
         {isLoadingMessages && conversationId ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-3">
-            <div className="w-6 h-6 border-2 border-[#a1a1aa] border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-[#a1a1aa]">Loading conversation...</p>
+            <div className="w-5 h-5 border-2 border-[#a1a1aa]/50 border-t-violet-500/80 rounded-full animate-spin" />
+            <p className="text-sm text-[#8080a0]">Loading conversation...</p>
           </div>
         ) : isMessagesError && conversationId ? (
           <div className="flex-1 flex items-center justify-center p-4">
@@ -505,9 +505,9 @@ export const ChatPage: React.FC = () => {
           </div>
         ) : !hasMessages && !isCurrentConvStreaming ? (
           /* Clean Empty State */
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-12 space-y-5 my-auto select-none max-w-2xl mx-auto w-full">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-16 space-y-6 my-auto select-none max-w-2xl mx-auto w-full">
             <div className="relative flex items-center justify-center mb-1">
-              <div className="h-11 w-11 rounded-2xl bg-gradient-to-b from-zinc-700 to-zinc-800 border border-white/15 flex items-center justify-center text-white shadow-md shadow-black/30">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/20 flex items-center justify-center text-white shadow-lg shadow-violet-900/40 ring-4 ring-violet-500/10">
                 <svg
                   className="w-5 h-5 text-white"
                   fill="none"
@@ -520,17 +520,17 @@ export const ChatPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#f4f4f5]">
+            <div className="space-y-2">
+              <h2 className="text-[28px] sm:text-[34px] font-bold tracking-tight text-white leading-tight">
                 What can I help with today?
               </h2>
-              <p className="text-xs sm:text-sm text-[#a1a1aa] font-normal">
+              <p className="text-sm sm:text-[15px] text-[#8080a8] font-normal leading-relaxed">
                 Ask a question, analyze ideas, or run an autonomous task
               </p>
             </div>
 
             {/* Starter Suggestion Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg pt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg pt-4">
               {[
                 "Calculate 1542 * 38 using calculator",
                 "Explain quantum computing in simple terms",
@@ -546,12 +546,12 @@ export const ChatPage: React.FC = () => {
                     }
                     handleSendMessage(promptText);
                   }}
-                  className="group relative flex items-center justify-between gap-2.5 text-left p-3.5 rounded-xl bg-[#202023]/90 hover:bg-[#27272b] border border-white/[0.08] hover:border-white/[0.18] shadow-xs hover:shadow-md transition-all duration-150 hover:-translate-y-0.5 cursor-pointer"
+                  className="group relative flex items-center justify-between gap-3 text-left p-4 rounded-2xl bg-[#1e1e28]/90 hover:bg-[#24242f] border border-white/[0.1] hover:border-white/[0.2] shadow-sm hover:shadow-lg hover:shadow-black/20 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
                 >
-                  <span className="text-xs text-[#d4d4d8] group-hover:text-white leading-relaxed font-normal">
+                  <span className="text-sm text-[#c8c8e0] group-hover:text-white leading-relaxed font-normal">
                     {promptText}
                   </span>
-                  <span className="text-xs text-[#71717a] group-hover:text-white/80 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100">
+                  <span className="text-sm text-[#6060a0] group-hover:text-white/70 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100">
                     ↗
                   </span>
                 </button>
@@ -560,19 +560,19 @@ export const ChatPage: React.FC = () => {
           </div>
         ) : (
           /* Natural message stream (~768-800px width like ChatGPT) */
-          <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6 sm:space-y-7">
+          <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-7 sm:space-y-8">
             {backendMessages.map((msg) => {
               const isUser = msg.role === "USER";
 
               return isUser ? (
                 <div key={msg._id} className="flex justify-end animate-in fade-in duration-150">
-                  <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] bg-[#27272b] text-[#f4f4f5] border border-white/[0.08] px-5 py-2.5 text-sm sm:text-[15px] break-words whitespace-pre-wrap leading-relaxed shadow-xs">
+                  <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] bg-[#252535] text-[#f0f0f8] border border-violet-500/[0.12] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed shadow-sm">
                     {msg.content}
                   </div>
                 </div>
               ) : (
                 <div key={msg._id} className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-b from-zinc-700 to-zinc-800 border border-white/10 text-white flex-shrink-0 mt-0.5 shadow-xs">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/15 text-white flex-shrink-0 mt-0.5 shadow-sm shadow-violet-900/40">
                     <svg
                       className="w-3.5 h-3.5 text-white"
                       fill="none"
@@ -594,7 +594,7 @@ export const ChatPage: React.FC = () => {
             {/* Optimistic Pending User Message */}
             {visibleOptimisticMessages.map((msg) => (
               <div key={msg.id} className="flex justify-end animate-in fade-in duration-150">
-                <div className="max-w-[85%] sm:max-w-[70%] rounded-[24px] bg-[#2f2f2f] text-[#ececec] px-5 py-2.5 text-sm sm:text-[15px] break-words whitespace-pre-wrap leading-relaxed opacity-85">
+                <div className="max-w-[85%] sm:max-w-[70%] rounded-[24px] bg-[#252535] text-[#e8e8f0] border border-violet-500/[0.1] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed opacity-80">
                   {msg.content}
                 </div>
               </div>
@@ -603,7 +603,7 @@ export const ChatPage: React.FC = () => {
             {/* Progressive Streaming Assistant Message */}
             {isCurrentConvStreaming && currentStream && (
               <div className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2f2f2f] text-white flex-shrink-0 mt-0.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/15 text-white flex-shrink-0 mt-0.5 shadow-sm shadow-violet-900/30">
                   <svg
                     className="w-3.5 h-3.5 text-white"
                     fill="none"
@@ -619,7 +619,7 @@ export const ChatPage: React.FC = () => {
                   {/* Tool Status UI for Agent Execution */}
                   {currentStream.type === "agent" &&
                     (currentStream.agentStatusText || currentStream.toolStatuses.length > 0) && (
-                      <div className="rounded-xl bg-[#262626] border border-white/[0.08] p-3 text-xs font-mono select-none space-y-1.5 shadow-sm max-w-md">
+                      <div className="rounded-xl bg-[#1e1e28] border border-white/[0.09] p-3.5 text-xs font-mono select-none space-y-2 shadow-sm max-w-md">
                         {/* Status line: Working... */}
                         {currentStream.agentStatusText && !currentStream.toolStatuses.length && (
                           <div className="flex items-center gap-2 text-[#ececec]">
@@ -668,7 +668,7 @@ export const ChatPage: React.FC = () => {
                   {currentStream.streamingContent ? (
                     <div className="relative">
                       <MarkdownMessage content={currentStream.streamingContent} />
-                      <span className="inline-block w-1.5 h-4 ml-1 bg-[#ececec] animate-pulse align-middle" />
+                      <span className="inline-block w-1.5 h-4 ml-1 bg-violet-400 animate-pulse align-middle opacity-80" />
                     </div>
                   ) : (
                     currentStream.type === "chat" && (
@@ -694,7 +694,7 @@ export const ChatPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleStopGenerating(conversationId)}
-            className="px-3.5 py-1.5 rounded-full bg-[#2f2f2f] hover:bg-[#383838] border border-white/10 text-xs text-[#ececec] font-medium flex items-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer select-none"
+            className="px-4 py-1.5 rounded-full bg-[#1e1e28] hover:bg-[#26263a] border border-white/[0.12] text-sm text-[#c0c0e0] font-medium flex items-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer select-none"
           >
             <span className="w-2.5 h-2.5 rounded-[2px] bg-[#ececec]" />
             {currentStream?.type === "agent" ? "Stop Agent" : "Stop generating"}
@@ -721,7 +721,7 @@ export const ChatPage: React.FC = () => {
       {/* Archived Conversation Banner */}
       {isArchived && (
         <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 mb-2 flex-shrink-0">
-          <div className="rounded-xl bg-[#2a2a2a] border border-white/[0.08] px-4 py-3 text-xs text-[#b4b4b4] flex items-center justify-between animate-in fade-in">
+          <div className="rounded-xl bg-[#1e1e28] border border-white/[0.09] px-4 py-3 text-xs text-[#c8c8e0] flex items-center justify-between animate-in fade-in shadow-sm">
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 text-[#8e8e8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
@@ -737,7 +737,7 @@ export const ChatPage: React.FC = () => {
               type="button"
               onClick={() => unarchiveMutation.mutate(conversationId!)}
               disabled={unarchiveMutation.isPending}
-              className="text-xs px-2.5 py-1 rounded bg-[#383838] hover:bg-[#444444] text-white transition-colors cursor-pointer disabled:opacity-50"
+              className="text-xs px-2.5 py-1 rounded bg-white/[0.1] hover:bg-white/[0.15] text-white transition-colors cursor-pointer disabled:opacity-50"
             >
               {unarchiveMutation.isPending ? "Unarchiving..." : "Unarchive"}
             </button>
@@ -746,8 +746,8 @@ export const ChatPage: React.FC = () => {
       )}
 
       {/* Prominent Bottom Chat Composer */}
-      <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6 pt-1 flex-shrink-0 relative z-10">
-        <div className="relative rounded-[24px] bg-[#222225]/95 border border-white/[0.12] focus-within:border-white/[0.25] focus-within:ring-1 focus-within:ring-white/[0.15] shadow-xl shadow-black/40 backdrop-blur-md transition-all p-2 sm:p-2.5">
+      <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-5 sm:pb-7 pt-2 flex-shrink-0 relative z-10">
+        <div className="relative rounded-[26px] bg-[#1d1d25]/98 border border-white/[0.14] focus-within:border-violet-500/40 focus-within:ring-1 focus-within:ring-violet-500/20 shadow-xl shadow-black/50 backdrop-blur-md transition-all duration-200 p-2 sm:p-2.5">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -771,7 +771,7 @@ export const ChatPage: React.FC = () => {
                       : "Message NexaMind..."
                 }
                 disabled={isSubmitting || isCurrentConvStreaming || isArchived}
-                className="flex-1 max-h-48 min-h-[36px] resize-none bg-transparent px-3.5 py-1.5 text-sm sm:text-[15px] text-[#f4f4f5] placeholder-[#71717a] focus:outline-none disabled:opacity-50 leading-relaxed"
+                className="flex-1 max-h-48 min-h-[40px] resize-none bg-transparent px-3.5 py-2 text-[15px] text-[#e8e8f0] placeholder-[#60608a] focus:outline-none disabled:opacity-50 leading-relaxed"
               />
 
               {isCurrentConvStreaming ? (
@@ -813,10 +813,10 @@ export const ChatPage: React.FC = () => {
                   onClick={() => setAgentMode((prev) => !prev)}
                   disabled={isCurrentConvStreaming || isArchived}
                   title={agentMode ? "Switch to standard Chat" : "Switch to Agent Mode (with tools)"}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${
                     agentMode
-                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 shadow-xs"
-                      : "bg-white/[0.04] text-[#a1a1aa] border border-white/[0.06] hover:text-white hover:bg-white/[0.08]"
+                      ? "bg-violet-500/20 text-violet-300 border border-violet-500/35 shadow-sm shadow-violet-900/20"
+                      : "bg-white/[0.05] text-[#8080a8] border border-white/[0.08] hover:text-white hover:bg-white/[0.09]"
                   }`}
                 >
                   <span className="text-xs">{agentMode ? "⚡" : "⚙"}</span>
@@ -824,13 +824,13 @@ export const ChatPage: React.FC = () => {
                 </button>
               </div>
 
-              <span className="text-[11px] text-[#71717a] select-none">
+              <span className="text-xs text-[#60608a] select-none">
                 {agentMode ? "Autonomous tool execution enabled" : "1 credit per query"}
               </span>
             </div>
           </form>
         </div>
-        <p className="text-[11px] text-center text-[#71717a] mt-2 select-none">
+        <p className="text-[11px] text-center text-[#50506a] mt-2 select-none">
           NexaMind can make mistakes. Verify important info.
         </p>
       </div>
