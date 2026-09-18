@@ -4,6 +4,7 @@ export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'DISABLED';
 
 export interface SafeUser {
   id: string;
+  name?: string | null;
   email: string;
   status: UserStatus | string;
   roles: UserRole[] | string[];
@@ -23,6 +24,7 @@ export interface LoginCredentials {
 }
 
 export interface RegisterCredentials {
+  name?: string;
   email: string;
   password: string;
 }

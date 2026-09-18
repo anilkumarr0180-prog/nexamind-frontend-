@@ -346,11 +346,10 @@ export const AppLayout = () => {
           to={`/app/chat/${chat._id}`}
           onClick={() => setMobileMenuOpen(false)}
           aria-current={isCurrent ? "page" : undefined}
-          className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs transition-colors duration-150 ${
-            isCurrent
+          className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs transition-colors duration-150 ${isCurrent
               ? "bg-[#212121] text-[#ececec] font-medium"
               : "text-[#b4b4b4] hover:bg-[#212121] hover:text-[#ececec]"
-          }`}
+            }`}
         >
           <span className="truncate flex-1 min-w-0 pr-1 text-left" title={chat.title}>
             {chat.title}
@@ -364,9 +363,8 @@ export const AppLayout = () => {
               e.stopPropagation();
               setActiveMenuId(isMenuOpen ? null : chat._id);
             }}
-            className={`p-1 rounded text-[#8e8e8e] hover:text-white hover:bg-[#2f2f2f] transition-all flex-shrink-0 cursor-pointer ${
-              isMenuOpen || isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            }`}
+            className={`p-1 rounded text-[#8e8e8e] hover:text-white hover:bg-[#2f2f2f] transition-all flex-shrink-0 cursor-pointer ${isMenuOpen || isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              }`}
             title="Options"
             aria-label="Conversation options"
           >
@@ -464,7 +462,7 @@ export const AppLayout = () => {
             onClick={() => setMobileMenuOpen(false)}
             className="flex items-center gap-2.5 group"
           >
-            <div className="h-7 w-7 rounded-lg bg-[#2f2f2f] flex items-center justify-center text-white">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-b from-zinc-700 to-zinc-800 border border-white/15 flex items-center justify-center text-white shadow-xs group-hover:border-white/30 transition-all">
               <svg
                 className="w-4 h-4 text-white"
                 fill="none"
@@ -479,7 +477,7 @@ export const AppLayout = () => {
                 />
               </svg>
             </div>
-            <span className="text-sm font-semibold tracking-tight text-[#ececec]">
+            <span className="text-sm font-semibold tracking-tight text-[#f4f4f5] group-hover:text-white transition-colors">
               NexaMind
             </span>
           </Link>
@@ -496,34 +494,31 @@ export const AppLayout = () => {
           </button>
         </div>
 
-        {/* Primary Action: + New Chat */}
+        {/* Primary Action: New Chat */}
         <div className="p-3">
           <button
             type="button"
             onClick={handleNewChat}
             disabled={isCreatingChat}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#212121] hover:bg-[#262626] active:scale-[0.99] text-[#ececec] text-xs font-medium border border-white/[0.08] transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#252528] hover:bg-[#2d2d32] active:scale-[0.98] text-[#f4f4f5] hover:text-white text-xs font-medium border border-white/[0.12] hover:border-white/[0.22] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] transition-all cursor-pointer disabled:opacity-50"
           >
-            <div className="flex items-center gap-2">
-              {isCreatingChat ? (
-                <svg className="animate-spin h-4 w-4 text-[#ececec]" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-              ) : (
-                <svg
-                  className="w-4 h-4 text-[#ececec]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-              )}
-              <span>+ New Chat</span>
-            </div>
-            <span className="text-[10px] text-[#8e8e8e] font-mono">⌘N</span>
+            {isCreatingChat ? (
+              <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <svg
+                className="w-4 h-4 text-[#d4d4d8]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            )}
+            <span className="font-medium text-[#f4f4f5] tracking-tight">New Chat</span>
           </button>
         </div>
 
@@ -596,21 +591,20 @@ export const AppLayout = () => {
             to="/app/memories"
             onClick={() => setMobileMenuOpen(false)}
             className={({ isActive }) =>
-              `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                isActive
-                  ? "bg-[#212121] text-white"
-                  : "text-[#b4b4b4] hover:bg-[#212121] hover:text-white"
+              `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isActive
+                ? "bg-white/[0.08] text-white"
+                : "text-[#a1a1aa] hover:bg-white/[0.05] hover:text-white"
               }`
             }
           >
             <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4 text-[#8e8e8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4 text-[#a1a1aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               <span>Memories</span>
             </div>
             {activeMemoriesCount > 0 && (
-              <span className="text-[10px] text-[#b4b4b4] bg-[#2f2f2f] px-1.5 py-0.5 rounded-full font-mono">
+              <span className="text-[10px] text-[#a1a1aa] bg-white/[0.06] border border-white/[0.08] px-1.5 py-0.5 rounded-full font-mono">
                 {activeMemoriesCount}
               </span>
             )}
@@ -620,15 +614,14 @@ export const AppLayout = () => {
             to="/app/settings"
             onClick={() => setMobileMenuOpen(false)}
             className={({ isActive }) =>
-              `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                isActive
-                  ? "bg-[#212121] text-white"
-                  : "text-[#b4b4b4] hover:bg-[#212121] hover:text-white"
+              `flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isActive
+                ? "bg-white/[0.08] text-white"
+                : "text-[#a1a1aa] hover:bg-white/[0.05] hover:text-white"
               }`
             }
           >
             <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4 text-[#8e8e8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4 text-[#a1a1aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -642,14 +635,14 @@ export const AppLayout = () => {
       <div className="p-3 border-t border-[#262626]">
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-7 w-7 rounded-full bg-[#2f2f2f] flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
-              {user?.email ? user.email[0].toUpperCase() : "U"}
+            <div className="h-7 w-7 rounded-full bg-gradient-to-b from-zinc-700 to-zinc-800 border border-white/10 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
+              {(user?.name || user?.email || "U")[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-[#ececec] truncate leading-tight">
-                {user?.email || "Nexa User"}
+              <p className="text-xs font-medium text-[#f4f4f5] truncate leading-tight" title={user?.name || user?.email || "Nexa User"}>
+                {user?.name || user?.email || "Nexa User"}
               </p>
-              <p className="text-[11px] font-mono text-[#8e8e8e] leading-tight mt-0.5">
+              <p className="text-[11px] font-mono text-[#a1a1aa] leading-tight mt-0.5">
                 {currentBalance} credits
               </p>
             </div>
@@ -659,7 +652,7 @@ export const AppLayout = () => {
             onClick={handleLogout}
             title="Sign out"
             aria-label="Sign out"
-            className="rounded-lg p-1.5 text-[#8e8e8e] hover:text-white hover:bg-[#212121] transition-colors flex-shrink-0 cursor-pointer"
+            className="rounded-lg p-1.5 text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0 cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -676,7 +669,7 @@ export const AppLayout = () => {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#212121] text-[#ececec] font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#18181b] text-[#f4f4f5] font-sans">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 min-w-[16rem] max-w-[16rem] flex-shrink-0 overflow-hidden box-border">
         {sidebarContent}
@@ -696,14 +689,14 @@ export const AppLayout = () => {
       )}
 
       {/* Main Workspace Column */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#212121]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#18181b]">
         {/* Top Header */}
-        <header className="h-14 border-b border-[#2d2d2d] bg-[#212121] flex items-center justify-between px-6 flex-shrink-0">
+        <header className="h-14 border-b border-white/[0.06] bg-[#18181b]/80 backdrop-blur-md flex items-center justify-between px-6 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile menu trigger */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden rounded-lg p-1.5 text-[#8e8e8e] hover:text-white hover:bg-[#2f2f2f] transition-colors flex-shrink-0"
+              className="md:hidden rounded-lg p-1.5 text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0"
               aria-label="Open sidebar menu"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -713,7 +706,7 @@ export const AppLayout = () => {
 
             {/* Title */}
             {getHeaderTitle() ? (
-              <h1 className="text-sm font-medium text-[#ececec] tracking-tight truncate" title={getHeaderTitle()}>
+              <h1 className="text-sm font-medium text-[#f4f4f5] tracking-tight truncate" title={getHeaderTitle()}>
                 {getHeaderTitle()}
               </h1>
             ) : null}
@@ -733,7 +726,7 @@ export const AppLayout = () => {
                   }}
                   title="Rename this conversation"
                   aria-label="Rename this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#8e8e8e] hover:text-white hover:bg-[#2f2f2f] rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -751,7 +744,7 @@ export const AppLayout = () => {
                   onClick={(e) => handleArchiveConversation(e, activeConvId)}
                   title="Archive this conversation"
                   aria-label="Archive this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#8e8e8e] hover:text-white hover:bg-[#2f2f2f] rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#a1a1aa] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -769,7 +762,7 @@ export const AppLayout = () => {
                   onClick={(e) => handleDeleteConversation(e, activeConvId)}
                   title="Delete this conversation"
                   aria-label="Delete this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#8e8e8e] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#a1a1aa] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -788,9 +781,8 @@ export const AppLayout = () => {
 
         {/* Dynamic Route Content */}
         <main
-          className={`flex-1 flex flex-col min-h-0 bg-[#212121] ${
-            isChatRoute ? "overflow-hidden" : "overflow-y-auto"
-          }`}
+          className={`flex-1 flex flex-col min-h-0 bg-[#18181b] ${isChatRoute ? "overflow-hidden" : "overflow-y-auto"
+            }`}
         >
           <Outlet />
         </main>
