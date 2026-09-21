@@ -7,19 +7,19 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['"Outfit"', '"Plus Jakarta Sans"', 'sans-serif'],
+        sans: ['"Inter"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['"Outfit"', '"Inter"', '"Plus Jakarta Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       colors: {
-        canvas: '#212121',
+        canvas: '#16161a',
         surface: {
-          subtle: '#171717',
-          muted: '#171717',
-          DEFAULT: '#212121',
-          elevated: '#2f2f2f',
-          hover: '#2f2f2f',
-          active: '#383838',
+          subtle: '#0f0f13',
+          muted: '#111116',
+          DEFAULT: '#1c1c22',
+          elevated: '#26262e',
+          hover: '#2a2a34',
+          active: '#30303c',
         },
         brand: {
           50: '#f5f3ff',
@@ -43,7 +43,7 @@ export default {
       },
       borderColor: {
         subtle: 'rgba(255, 255, 255, 0.07)',
-        DEFAULT: 'rgba(255, 255, 255, 0.12)',
+        DEFAULT: 'rgba(255, 255, 255, 0.11)',
         strong: 'rgba(255, 255, 255, 0.18)',
         focus: 'rgba(139, 92, 246, 0.65)',
       },
