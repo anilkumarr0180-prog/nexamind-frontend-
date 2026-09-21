@@ -10,12 +10,10 @@ import { API_BASE_URL } from '@/lib/api/client';
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
 
-  const { data: balanceData } = useQuery({
+  const { data: balanceData, isLoading: isBalanceLoading, isError: isBalanceError } = useQuery({
     queryKey: usageKeys.balance(),
     queryFn: () => getTokenBalance(),
   });
-
-  const currentBalance = balanceData?.balance ?? 100;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
@@ -107,7 +105,7 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#0e1322]/80 border border-white/[0.07]">
               <div className="space-y-0.5">
                 <p className="text-xs font-medium text-slate-300">Available Balance</p>
-                <p className="text-sm font-mono font-bold text-violet-300">{currentBalance} Credits</p>
+                <p className="text-sm font-mono font-bold text-violet-300">{isBalanceLoading ? "Loading..." : isBalanceError ? "Unavailable" : `${balanceData?.balance ?? 0} Credits`}</p>
               </div>
               <Badge variant="neutral" size="sm">Cost: 1 credit / turn</Badge>
             </div>

@@ -126,12 +126,11 @@ export const AppLayout = () => {
   );
 
   // 2. Live Token Balance
-  const { data: balanceData } = useQuery({
+  const { data: balanceData, isLoading: isBalanceLoading, isError: isBalanceError } = useQuery({
     queryKey: usageKeys.balance(),
     queryFn: () => getTokenBalance(),
     refetchInterval: 15000,
   });
-  const currentBalance = balanceData?.balance ?? 100;
 
   // 3. Live Memories Count
   const { data: memoriesData } = useQuery({
@@ -659,7 +658,7 @@ export const AppLayout = () => {
                 {user?.name || user?.email || "Nexa User"}
               </p>
               <p className="text-[11px] font-mono text-[#7878a0] leading-tight mt-0.5">
-                {currentBalance} credits
+                {isBalanceLoading ? "Loading..." : isBalanceError ? "Unavailable" : `${balanceData?.balance ?? 0} credits`}
               </p>
             </div>
           </div>
