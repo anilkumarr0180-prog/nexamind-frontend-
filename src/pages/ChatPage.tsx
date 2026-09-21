@@ -19,7 +19,7 @@ import { memoryKeys } from "@/features/memories";
 import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
-import type { Message, Conversation, ToolStatusEvent } from "@/types";
+import type { Message, Conversation, ToolStatusEvent, PaginatedResponse } from "@/types";
 
 interface PendingMessage {
   id: string;
@@ -175,6 +175,18 @@ export const ChatPage: React.FC = () => {
         const title = generateConversationTitle(text);
         const createdConv = await createConversation({ title });
         targetConvId = createdConv._id;
+        queryClient.setQueryData(chatKeys.messages(targetConvId), {
+          success: true,
+          data: [],
+          pagination: {
+            page: 1,
+            limit: 100,
+            total: 0,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        });
         queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
         navigate(`/app/chat/${targetConvId}`, { replace: true });
       } catch (createErr: unknown) {
@@ -319,12 +331,8 @@ export const ChatPage: React.FC = () => {
                 };
               });
             },
-            onDone: () => {
-              queryClient.invalidateQueries({ queryKey: chatKeys.messages(targetConvId!) });
-              queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
-              queryClient.invalidateQueries({ queryKey: conversationKeys.detail(targetConvId!) });
-              queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
-              queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
+            onDone: async () => {
+              await queryClient.refetchQueries({ queryKey: chatKeys.messages(targetConvId!) });
 
               setOptimisticMessages((prev) =>
                 prev.filter((m) => m.conversationId !== targetConvId),
@@ -335,6 +343,11 @@ export const ChatPage: React.FC = () => {
                 return next;
               });
               abortControllersRef.current.delete(targetConvId);
+
+              queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+              queryClient.invalidateQueries({ queryKey: conversationKeys.detail(targetConvId!) });
+              queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
+              queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
             },
             onError: (err) => {
               if (abortController.signal.aborted) return;
@@ -405,12 +418,60 @@ export const ChatPage: React.FC = () => {
                 };
               });
             },
-            onDone: () => {
-              queryClient.invalidateQueries({ queryKey: chatKeys.messages(targetConvId!) });
-              queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
-              queryClient.invalidateQueries({ queryKey: conversationKeys.detail(targetConvId!) });
-              queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
-              queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
+            onDone: (result) => {
+              if (result?.userMessage && result?.assistantMessage) {
+                const normUserMsg: Message = {
+                  _id: (result.userMessage as any)._id || result.userMessage.id,
+                  conversationId: targetConvId,
+                  userId: (result.userMessage as any).userId || "",
+                  role: (result.userMessage.role as any) || "USER",
+                  content: result.userMessage.content,
+                  status: (result.userMessage.status as any) || "COMPLETED",
+                  model: null,
+                  provider: null,
+                  usage: null,
+                  createdAt: result.userMessage.createdAt,
+                  updatedAt: result.userMessage.createdAt,
+                };
+
+                const normAssistantMsg: Message = {
+                  _id: (result.assistantMessage as any)._id || result.assistantMessage.id,
+                  conversationId: targetConvId,
+                  userId: (result.assistantMessage as any).userId || "",
+                  role: (result.assistantMessage.role as any) || "ASSISTANT",
+                  content: result.assistantMessage.content,
+                  status: (result.assistantMessage.status as any) || "COMPLETED",
+                  model: result.assistantMessage.model ?? null,
+                  provider: result.assistantMessage.provider ?? null,
+                  usage: result.assistantMessage.usage ?? null,
+                  createdAt: result.assistantMessage.createdAt,
+                  updatedAt: result.assistantMessage.createdAt,
+                };
+
+                queryClient.setQueryData<PaginatedResponse<Message>>(
+                  chatKeys.messages(targetConvId!),
+                  (old) => {
+                    const existing = old?.data || [];
+                    const existingIds = new Set(existing.map((m) => m._id));
+                    const toAdd = [normUserMsg, normAssistantMsg].filter(
+                      (m) => m._id && !existingIds.has(m._id),
+                    );
+                    const updatedData = [...existing, ...toAdd];
+                    return {
+                      success: true,
+                      data: updatedData,
+                      pagination: old?.pagination || {
+                        page: 1,
+                        limit: 100,
+                        total: updatedData.length,
+                        totalPages: 1,
+                        hasNextPage: false,
+                        hasPreviousPage: false,
+                      },
+                    };
+                  },
+                );
+              }
 
               setOptimisticMessages((prev) =>
                 prev.filter((m) => m.conversationId !== targetConvId),
@@ -421,6 +482,12 @@ export const ChatPage: React.FC = () => {
                 return next;
               });
               abortControllersRef.current.delete(targetConvId);
+
+              queryClient.invalidateQueries({ queryKey: chatKeys.messages(targetConvId!) });
+              queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+              queryClient.invalidateQueries({ queryKey: conversationKeys.detail(targetConvId!) });
+              queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
+              queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
             },
             onError: (err) => {
               if (abortController.signal.aborted) return;
