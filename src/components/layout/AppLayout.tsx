@@ -12,6 +12,7 @@ import {
 } from "@/features/conversations";
 import { usageKeys, getTokenBalance } from "@/features/usage";
 import { memoryKeys, getMemories } from "@/features/memories";
+import { NexaMindLogo } from "@/components/ui";
 import type { Conversation } from "@/types";
 
 interface GroupedConversations {
@@ -440,26 +441,9 @@ export const AppLayout = () => {
           <Link
             to="/app"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2.5 group"
+            className="flex items-center group cursor-pointer"
           >
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/20 flex items-center justify-center text-white shadow-md shadow-violet-900/30 group-hover:shadow-violet-700/40 transition-all">
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-            </div>
-            <span className="text-[15px] font-bold tracking-tight text-white transition-colors">
-              NexaMind
-            </span>
+            <NexaMindLogo size="md" />
           </Link>
 
           <div className="flex items-center gap-1">
