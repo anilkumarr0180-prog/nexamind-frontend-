@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { NexaMindIcon } from '@/components/ui';
 import { classifyApiError } from '@/lib/utils/error';
 
 export const RegisterPage: React.FC = () => {
@@ -80,21 +81,9 @@ export const RegisterPage: React.FC = () => {
       <div className="w-full max-w-[420px] space-y-6">
         {/* Brand Heading */}
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-500 to-cyan-400 p-[1px] shadow-glow-brand mb-1 transition-transform hover:scale-105 duration-200">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-500 to-cyan-400 p-[1.5px] shadow-glow-brand mb-1 transition-transform hover:scale-105 duration-200">
             <div className="h-full w-full bg-[#121626] rounded-[15px] flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-violet-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
+              <NexaMindIcon className="w-7 h-7" />
             </div>
           </div>
           <h1 className="text-2xl sm:text-[28px] font-display font-bold tracking-tight text-white">

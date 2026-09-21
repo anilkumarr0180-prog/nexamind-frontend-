@@ -19,6 +19,7 @@ import { memoryKeys } from "@/features/memories";
 import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { NexaMindIcon } from "@/components/ui";
 import type { Message, Conversation, ToolStatusEvent, PaginatedResponse } from "@/types";
 
 interface PendingMessage {
@@ -584,16 +585,8 @@ export const ChatPage: React.FC = () => {
           /* Clean Empty State */
           <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-16 space-y-6 my-auto select-none max-w-2xl mx-auto w-full">
             <div className="relative flex items-center justify-center mb-1">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/20 flex items-center justify-center text-white shadow-lg shadow-violet-900/40 ring-4 ring-violet-500/10">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#1e1b4b] via-[#16143c] to-[#0c0b1e] border border-violet-500/35 flex items-center justify-center shadow-xl shadow-violet-950/60 ring-4 ring-violet-500/10">
+                <NexaMindIcon className="w-8 h-8" />
               </div>
             </div>
 
@@ -649,16 +642,8 @@ export const ChatPage: React.FC = () => {
                 </div>
               ) : (
                 <div key={msg._id} className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/15 text-white flex-shrink-0 mt-0.5 shadow-sm shadow-violet-900/40">
-                    <svg
-                      className="w-3.5 h-3.5 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-[#1e1b4b] via-[#16143c] to-[#0c0b1e] border border-violet-500/30 text-white flex-shrink-0 mt-0.5 shadow-sm shadow-violet-950/40">
+                    <NexaMindIcon className="w-4 h-4" showGlow={false} />
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-1 pt-0.5">
@@ -680,16 +665,8 @@ export const ChatPage: React.FC = () => {
             {/* Progressive Streaming Assistant Message */}
             {isCurrentConvStreaming && currentStream && (
               <div className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">
-                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-white/15 text-white flex-shrink-0 mt-0.5 shadow-sm shadow-violet-900/30">
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-[#1e1b4b] via-[#16143c] to-[#0c0b1e] border border-violet-500/30 text-white flex-shrink-0 mt-0.5 shadow-sm shadow-violet-950/30 animate-pulse">
+                  <NexaMindIcon className="w-4 h-4" showGlow={false} />
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-2 pt-0.5">
