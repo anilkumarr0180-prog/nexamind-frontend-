@@ -115,6 +115,16 @@ export const ChatPage: React.FC = () => {
     }
   }, [conversationId]);
 
+  // Automatically restore focus to textarea when generation/streaming completes
+  useEffect(() => {
+    if (!isCurrentConvStreaming && !isSubmitting && !isArchived) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isCurrentConvStreaming, isSubmitting, isArchived]);
+
   // Unarchive mutation
   const unarchiveMutation = useMutation({
     mutationFn: (id: string) => unarchiveConversation(id),
@@ -735,7 +745,6 @@ export const ChatPage: React.FC = () => {
                   {currentStream.streamingContent ? (
                     <div className="relative">
                       <MarkdownMessage content={currentStream.streamingContent} />
-                      <span className="inline-block w-1.5 h-4 ml-1 bg-violet-400 animate-pulse align-middle opacity-80" />
                     </div>
                   ) : (
                     currentStream.type === "chat" && (
