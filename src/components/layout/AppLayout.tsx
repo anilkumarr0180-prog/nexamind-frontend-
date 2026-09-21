@@ -5,7 +5,6 @@ import { useAuth } from "@/features/auth";
 import {
   conversationKeys,
   getConversations,
-  createConversation,
   updateConversation,
   archiveConversation,
   unarchiveConversation,
@@ -69,7 +68,6 @@ export const AppLayout = () => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -190,42 +188,21 @@ export const AppLayout = () => {
     },
   });
 
-  const allConversationsRef = useRef(allConversations);
-  const activeConvIdRef = useRef(activeConvId);
-  const isCreatingChatRef = useRef(isCreatingChat);
-
-  useEffect(() => {
-    allConversationsRef.current = allConversations;
-    activeConvIdRef.current = activeConvId;
-    isCreatingChatRef.current = isCreatingChat;
-  }, [allConversations, activeConvId, isCreatingChat]);
-
-  const handleNewChat = useCallback(async () => {
-    if (isCreatingChatRef.current) return;
-
-    // If currently on an empty conversation, reuse it and do not create duplicates
-    if (activeConvIdRef.current) {
-      const currentActive = allConversationsRef.current.find((c) => c._id === activeConvIdRef.current);
-      if (currentActive && currentActive.messageCount === 0) {
-        setMobileMenuOpen(false);
-        const composerInput = document.querySelector<HTMLTextAreaElement>("textarea");
-        composerInput?.focus();
-        return;
-      }
-    }
-
-    try {
-      setIsCreatingChat(true);
-      const newConv = await createConversation({ title: "New Chat" });
-      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
-      navigate(`/app/chat/${newConv._id}`);
+  const handleNewChat = useCallback(() => {
+    if (location.pathname === "/app") {
       setMobileMenuOpen(false);
-    } catch (error) {
-      console.error("Failed to create new conversation:", error);
-    } finally {
-      setIsCreatingChat(false);
+      const composerInput = document.querySelector<HTMLTextAreaElement>("textarea");
+      composerInput?.focus();
+      return;
     }
-  }, [navigate, queryClient]);
+
+    navigate("/app");
+    setMobileMenuOpen(false);
+    setTimeout(() => {
+      const composerInput = document.querySelector<HTMLTextAreaElement>("textarea");
+      composerInput?.focus();
+    }, 50);
+  }, [navigate, location.pathname]);
 
   // Keyboard shortcut Cmd+N / Ctrl+N for new chat
   useEffect(() => {
@@ -518,19 +495,11 @@ export const AppLayout = () => {
           <button
             type="button"
             onClick={handleNewChat}
-            disabled={isCreatingChat}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#c8c8e0] hover:bg-white/[0.07] hover:text-white text-sm font-normal transition-all cursor-pointer disabled:opacity-50 group"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#c8c8e0] hover:bg-white/[0.07] hover:text-white text-sm font-normal transition-all cursor-pointer group"
           >
-            {isCreatingChat ? (
-              <svg className="animate-spin h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            ) : (
-              <svg className="w-4.5 h-4.5 flex-shrink-0 opacity-80 group-hover:opacity-100" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            )}
+            <svg className="w-4.5 h-4.5 flex-shrink-0 opacity-80 group-hover:opacity-100" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
             <span>New chat</span>
           </button>
 
