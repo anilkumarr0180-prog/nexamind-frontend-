@@ -10,8 +10,18 @@ export interface Subscription {
   currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
+  canceledAt?: string | null;
+  endedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  plan?: {
+    id: string;
+    code: PlanCode;
+    name: string;
+    description?: string;
+    monthlyCredits?: number;
+    features?: Record<string, boolean>;
+  } | null;
 }
 
 export interface CheckoutResponse {
