@@ -5,6 +5,7 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { MemoriesPage } from '@/pages/MemoriesPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { BillingPage } from '@/pages/BillingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth';
 
@@ -52,6 +53,10 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
+      },
+      {
+        path: 'billing',
+        element: <BillingPage />,
       },
     ],
   },
