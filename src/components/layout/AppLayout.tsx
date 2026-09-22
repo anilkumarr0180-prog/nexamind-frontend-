@@ -266,6 +266,7 @@ export const AppLayout = () => {
     }
     if (location.pathname === "/app/memories") return "Cognitive Memories";
     if (location.pathname === "/app/settings") return "Settings & Preferences";
+    if (location.pathname === "/app/billing") return "Billing & Plans";
     return "";
   };
 
@@ -623,6 +624,22 @@ export const AppLayout = () => {
                 {activeMemoriesCount}
               </span>
             )}
+          </NavLink>
+
+          <NavLink
+            to="/app/billing"
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isActive
+                ? "bg-white/[0.08] text-white"
+                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
+              }`
+            }
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            <span>Billing</span>
           </NavLink>
 
           <NavLink
