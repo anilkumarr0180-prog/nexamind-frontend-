@@ -6,9 +6,48 @@ export const subscriptionKeys = {
   me: () => [...subscriptionKeys.all, 'me'] as const,
 };
 
-export const getMySubscription = async (): Promise<Subscription> => {
-  const response = await apiClient.get<ApiResponse<Subscription>>('/subscriptions/me');
-  return response.data.data;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const normalizeSubscription = (raw: any): Subscription | null => {
+  if (!raw) return null;
+  const subData = raw.subscription ?? raw;
+  if (!subData || !subData.id) return null;
+
+  return {
+    ...subData,
+    planCode: (subData.planCode || subData.plan?.code || 'FREE').toUpperCase() as Subscription['planCode'],
+    status: (subData.status || '').toLowerCase() as Subscription['status'],
+    interval: subData.interval ? (subData.interval.toLowerCase() as Subscription['interval']) : null,
+    cancelAtPeriodEnd: Boolean(subData.cancelAtPeriodEnd),
+  };
+};
+
+export const getMySubscription = async (): Promise<Subscription | null> => {
+  const response = await apiClient.get<ApiResponse<{ subscription: Subscription | null } | Subscription>>('/subscriptions/me');
+  return normalizeSubscription(response.data.data);
+};
+
+export const postCancelSubscription = async (): Promise<Subscription | null> => {
+  const response = await apiClient.post<ApiResponse<{ subscription: Subscription } | Subscription>>('/subscriptions/cancel');
+  return normalizeSubscription(response.data.data);
+};
+
+export const postResumeSubscription = async (): Promise<Subscription | null> => {
+  const response = await apiClient.post<ApiResponse<{ subscription: Subscription } | Subscription>>('/subscriptions/resume');
+  return normalizeSubscription(response.data.data);
+};
+
+export const postSyncSubscription = async (): Promise<Subscription | null> => {
+  const response = await apiClient.post<ApiResponse<{ subscription: Subscription | null } | Subscription>>('/subscriptions/sync');
+  return normalizeSubscription(response.data.data);
+};
+
+export const postUpgradeSubscription = async (payload: CheckoutPayload): Promise<{ subscription: Subscription | null; creditGrant: number }> => {
+  const response = await apiClient.post<ApiResponse<{ subscription: Subscription; creditGrant: number }>>('/subscriptions/upgrade', payload);
+  const data = response.data.data;
+  return {
+    subscription: normalizeSubscription(data.subscription),
+    creditGrant: data.creditGrant ?? 0,
+  };
 };
 
 export const postCheckout = async (payload: CheckoutPayload): Promise<CheckoutResponse> => {

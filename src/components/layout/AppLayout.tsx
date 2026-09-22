@@ -74,20 +74,46 @@ export const AppLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
-  // Close menus on outside click
+  // Close menus on outside click or Escape
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setActiveMenuId(null);
       }
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node) &&
+        userMenuTriggerRef.current &&
+        !userMenuTriggerRef.current.contains(e.target as Node)
+      ) {
+        setUserMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveMenuId(null);
+        setUserMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
+
+  // Close user menu on route change
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [location.pathname]);
 
   // Auto-focus input when editing
   useEffect(() => {
@@ -266,7 +292,7 @@ export const AppLayout = () => {
     }
     if (location.pathname === "/app/memories") return "Cognitive Memories";
     if (location.pathname === "/app/settings") return "Settings & Preferences";
-    if (location.pathname === "/app/billing") return "Billing & Plans";
+    if (location.pathname === "/app/billing") return "Plans & Pricing";
     return "";
   };
 
@@ -601,77 +627,153 @@ export const AppLayout = () => {
           )}
         </div>
 
-        {/* Secondary Navigation: Memories & Settings */}
-        <div className="px-2 py-2.5 border-t border-white/[0.07] space-y-0.5">
-          <NavLink
-            to="/app/memories"
-            onClick={() => setMobileMenuOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isActive
-                ? "bg-white/[0.08] text-white"
-                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
-              }`
-            }
+      </div>
+
+      {/* Account & User Menu Footer */}
+      <div className="relative p-2.5 border-t border-white/[0.07]">
+        {/* ChatGPT-style Popover Menu */}
+        {userMenuOpen && (
+          <div
+            ref={userMenuRef}
+            className="absolute bottom-full mb-2 left-2 right-2 z-50 rounded-2xl bg-[#1e1e24] border border-white/[0.12] shadow-2xl shadow-black/80 p-1.5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 select-none"
           >
-            <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            {/* Top User Row / Profile */}
+            <NavLink
+              to="/app/settings"
+              onClick={() => {
+                setUserMenuOpen(false);
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.06] transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-700 to-indigo-800 border border-white/15 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                  {(user?.name || user?.email || "U")[0].toUpperCase()}
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-sm font-semibold text-[#f0f0f8] truncate leading-tight group-hover:text-white" title={user?.name || user?.email || "Nexa User"}>
+                    {user?.name || user?.email || "Nexa User"}
+                  </p>
+                  <p className="text-[11px] font-mono text-[#7878a0] leading-tight mt-0.5">
+                    {isBalanceLoading ? "Loading..." : isBalanceError ? "Unavailable" : `${balanceData?.balance ?? 0} credits`}
+                  </p>
+                </div>
+              </div>
+              <svg className="w-4 h-4 text-[#7878a0] group-hover:text-white transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
-              <span>Memories</span>
-            </div>
-            {activeMemoriesCount > 0 && (
-              <span className="text-[10px] text-[#a1a1aa] bg-white/[0.06] border border-white/[0.08] px-1.5 py-0.5 rounded-full font-mono">
-                {activeMemoriesCount}
-              </span>
-            )}
-          </NavLink>
+            </NavLink>
 
-          <NavLink
-            to="/app/billing"
-            onClick={() => setMobileMenuOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isActive
-                ? "bg-white/[0.08] text-white"
-                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
-              }`
-            }
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-            </svg>
-            <span>Billing</span>
-          </NavLink>
+            <div className="my-1 border-t border-white/[0.08]" />
 
-          <NavLink
-            to="/app/settings"
-            onClick={() => setMobileMenuOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isActive
-                ? "bg-white/[0.08] text-white"
-                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
-              }`
-            }
-          >
-            <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            {/* Upgrade plan */}
+            <NavLink
+              to="/app/billing"
+              onClick={() => {
+                setUserMenuOpen(false);
+                setMobileMenuOpen(false);
+              }}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-white/[0.08] text-white"
+                    : "text-[#c8c8e0] hover:bg-white/[0.06] hover:text-white"
+                }`
+              }
+            >
+              <svg className="w-4 h-4 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+              </svg>
+              <span>Upgrade plan</span>
+            </NavLink>
+
+            {/* Memories */}
+            <NavLink
+              to="/app/memories"
+              onClick={() => {
+                setUserMenuOpen(false);
+                setMobileMenuOpen(false);
+              }}
+              className={({ isActive }) =>
+                `flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-white/[0.08] text-white"
+                    : "text-[#c8c8e0] hover:bg-white/[0.06] hover:text-white"
+                }`
+              }
+            >
+              <div className="flex items-center gap-3">
+                <svg className="w-4 h-4 text-[#9090b0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span>Memories</span>
+              </div>
+              {activeMemoriesCount > 0 && (
+                <span className="text-[10px] text-[#a1a1aa] bg-white/[0.08] border border-white/[0.08] px-1.5 py-0.5 rounded-full font-mono">
+                  {activeMemoriesCount}
+                </span>
+              )}
+            </NavLink>
+
+            {/* Settings */}
+            <NavLink
+              to="/app/settings"
+              onClick={() => {
+                setUserMenuOpen(false);
+                setMobileMenuOpen(false);
+              }}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-white/[0.08] text-white"
+                    : "text-[#c8c8e0] hover:bg-white/[0.06] hover:text-white"
+                }`
+              }
+            >
+              <svg className="w-4 h-4 text-[#9090b0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span>Settings</span>
-            </div>
-          </NavLink>
-        </div>
-      </div>
+            </NavLink>
 
-      {/* Account & Usage Footer */}
-      <div className="p-3.5 border-t border-white/[0.07]">
-        <div className="flex items-center justify-between gap-2 px-1">
+            <div className="my-1 border-t border-white/[0.08]" />
+
+            {/* Log out */}
+            <button
+              type="button"
+              onClick={() => {
+                setUserMenuOpen(false);
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-[#c8c8e0] hover:bg-white/[0.06] hover:text-rose-300 transition-colors cursor-pointer text-left"
+            >
+              <svg className="w-4 h-4 text-[#9090b0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>Log out</span>
+            </button>
+          </div>
+        )}
+
+        {/* User Button Trigger */}
+        <button
+          ref={userMenuTriggerRef}
+          type="button"
+          onClick={() => setUserMenuOpen((prev) => !prev)}
+          className={`w-full flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer group ${
+            userMenuOpen ? "bg-white/[0.08]" : "hover:bg-white/[0.05]"
+          }`}
+          aria-expanded={userMenuOpen}
+          aria-haspopup="true"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-700 to-indigo-800 border border-white/15 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
               {(user?.name || user?.email || "U")[0].toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#f0f0f8] truncate leading-tight" title={user?.name || user?.email || "Nexa User"}>
+            <div className="min-w-0 text-left">
+              <p className="text-sm font-semibold text-[#f0f0f8] truncate leading-tight group-hover:text-white" title={user?.name || user?.email || "Nexa User"}>
                 {user?.name || user?.email || "Nexa User"}
               </p>
               <p className="text-[11px] font-mono text-[#7878a0] leading-tight mt-0.5">
@@ -679,23 +781,12 @@ export const AppLayout = () => {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            title="Sign out"
-            aria-label="Sign out"
-            className="rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0 cursor-pointer"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.8}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
+          <div className="text-[#9090b0] group-hover:text-white p-1 transition-colors flex-shrink-0">
+            <svg className={`w-4 h-4 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
             </svg>
-          </button>
-        </div>
+          </div>
+        </button>
       </div>
     </div>
   );
