@@ -60,6 +60,11 @@ export const ChatPage: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
+  // Branch & Versioning state
+  const [selectedLeafId, setSelectedLeafId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editInputContent, setEditInputContent] = useState<string>("");
+
   // 1. Fetch active conversation details (for title, status, archiving check)
   const { data: conversationData } = useQuery<Conversation>({
     queryKey: conversationKeys.detail(conversationId || ""),
@@ -89,6 +94,93 @@ export const ChatPage: React.FC = () => {
     (msg) => !msg.conversationId || msg.conversationId === conversationId,
   );
 
+  // Sync selected leaf when conversation data updates
+  useEffect(() => {
+    setSelectedLeafId(conversationData?.activeLeafMessageId || null);
+    setEditingMessageId(null);
+  }, [conversationId, conversationData?.activeLeafMessageId]);
+
+  // Compute active branch messages and turn version groupings
+  const { activeMessages, versionMap } = React.useMemo(() => {
+    if (!backendMessages.length) {
+      return {
+        activeMessages: [] as Message[],
+        versionMap: new Map<string, { versions: Message[]; currentIndex: number }>(),
+      };
+    }
+
+    const msgMap = new Map<string, Message>();
+    const versionGroups = new Map<string, Message[]>();
+
+    for (const msg of backendMessages) {
+      msgMap.set(msg._id, msg);
+      if (msg.role === "USER") {
+        const rootKey = msg.originalMessageId || msg._id;
+        const grp = versionGroups.get(rootKey) || [];
+        grp.push(msg);
+        versionGroups.set(rootKey, grp);
+      }
+    }
+
+    for (const grp of versionGroups.values()) {
+      grp.sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+    }
+
+    let currentLeaf: Message | undefined;
+    if (selectedLeafId && msgMap.has(selectedLeafId)) {
+      currentLeaf = msgMap.get(selectedLeafId);
+    } else if (
+      conversationData?.activeLeafMessageId &&
+      msgMap.has(conversationData.activeLeafMessageId)
+    ) {
+      currentLeaf = msgMap.get(conversationData.activeLeafMessageId);
+    } else {
+      currentLeaf = backendMessages[backendMessages.length - 1];
+    }
+
+    const activePath: Message[] = [];
+    const visited = new Set<string>();
+    let curr = currentLeaf;
+
+    while (curr && !visited.has(curr._id)) {
+      visited.add(curr._id);
+      activePath.unshift(curr);
+      if (curr.parentMessageId && msgMap.has(curr.parentMessageId)) {
+        curr = msgMap.get(curr.parentMessageId);
+      } else {
+        const legacyBefore = backendMessages.filter(
+          (m) =>
+            !m.parentMessageId &&
+            new Date(m.createdAt).getTime() < new Date(curr!.createdAt).getTime() &&
+            !visited.has(m._id),
+        );
+        if (legacyBefore.length > 0) {
+          activePath.unshift(...legacyBefore);
+        }
+        break;
+      }
+    }
+
+    const displayList = activePath.length ? activePath : backendMessages;
+
+    const vMap = new Map<string, { versions: Message[]; currentIndex: number }>();
+    for (const msg of displayList) {
+      if (msg.role === "USER") {
+        const rootKey = msg.originalMessageId || msg._id;
+        const versions = versionGroups.get(rootKey) || [msg];
+        const currentIndex = versions.findIndex((v) => v._id === msg._id);
+        vMap.set(msg._id, {
+          versions,
+          currentIndex: currentIndex >= 0 ? currentIndex : 0,
+        });
+      }
+    }
+
+    return { activeMessages: displayList, versionMap: vMap };
+  }, [backendMessages, selectedLeafId, conversationData]);
+
   // Scoped active stream for the current conversation
   const currentStream = conversationId ? streamingMap[conversationId] : null;
   const isCurrentConvStreaming = !!currentStream;
@@ -97,7 +189,7 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [
-    backendMessages.length,
+    activeMessages.length,
     visibleOptimisticMessages.length,
     isSubmitting,
     isCurrentConvStreaming,
@@ -105,6 +197,46 @@ export const ChatPage: React.FC = () => {
     currentStream?.agentStatusText,
     currentStream?.toolStatuses.length,
   ]);
+
+  // Branch navigation & editing handlers
+  const handleSwitchVersion = async (targetMsg: Message) => {
+    let cur: Message = targetMsg;
+    while (true) {
+      const children = backendMessages.filter((m) => m.parentMessageId === cur._id);
+      if (!children.length) break;
+      cur = children[children.length - 1]!;
+    }
+
+    setSelectedLeafId(cur._id);
+    if (conversationId) {
+      try {
+        await updateConversation(conversationId, { activeLeafMessageId: cur._id });
+        queryClient.invalidateQueries({ queryKey: conversationKeys.detail(conversationId) });
+      } catch (err) {
+        console.error("Non-fatal branch sync error:", err);
+      }
+    }
+  };
+
+  const handleStartEdit = (msg: Message) => {
+    if (isCurrentConvStreaming || isSubmitting || isArchived) return;
+    setEditingMessageId(msg._id);
+    setEditInputContent(msg.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditInputContent("");
+  };
+
+  const handleSubmitEdit = async (msgId: string) => {
+    const text = editInputContent.trim();
+    if (!text || isSubmitting || isCurrentConvStreaming || isArchived) return;
+
+    setEditingMessageId(null);
+    setEditInputContent("");
+    handleSendMessage(text, msgId);
+  };
 
   // Focus input and reset view states when conversation changes
   useEffect(() => {
@@ -166,7 +298,7 @@ export const ChatPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string, editMessageId?: string) => {
     const text = (textToSend || inputValue).trim();
     if (!text || isSubmitting || isCurrentConvStreaming || isArchived) return;
 
@@ -413,6 +545,7 @@ export const ChatPage: React.FC = () => {
           {
             conversationId: targetConvId,
             content: text,
+            ...(editMessageId ? { editMessageId } : {}),
           },
           {
             onStart: () => {},
@@ -438,6 +571,8 @@ export const ChatPage: React.FC = () => {
                   role: (result.userMessage.role as any) || "USER",
                   content: result.userMessage.content,
                   status: (result.userMessage.status as any) || "COMPLETED",
+                  parentMessageId: (result.userMessage as any).parentMessageId ?? null,
+                  originalMessageId: (result.userMessage as any).originalMessageId ?? null,
                   model: null,
                   provider: null,
                   usage: null,
@@ -452,12 +587,15 @@ export const ChatPage: React.FC = () => {
                   role: (result.assistantMessage.role as any) || "ASSISTANT",
                   content: result.assistantMessage.content,
                   status: (result.assistantMessage.status as any) || "COMPLETED",
+                  parentMessageId: (result.assistantMessage as any).parentMessageId ?? null,
                   model: result.assistantMessage.model ?? null,
                   provider: result.assistantMessage.provider ?? null,
                   usage: result.assistantMessage.usage ?? null,
                   createdAt: result.assistantMessage.createdAt,
                   updatedAt: result.assistantMessage.createdAt,
                 };
+
+                setSelectedLeafId(normAssistantMsg._id);
 
                 queryClient.setQueryData<PaginatedResponse<Message>>(
                   chatKeys.messages(targetConvId!),
@@ -561,7 +699,7 @@ export const ChatPage: React.FC = () => {
   };
 
   const hasMessages =
-    backendMessages.length > 0 || visibleOptimisticMessages.length > 0;
+    activeMessages.length > 0 || visibleOptimisticMessages.length > 0;
 
   return (
     <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-[#16161a] relative">
@@ -631,14 +769,102 @@ export const ChatPage: React.FC = () => {
         ) : (
           /* Natural message stream (~768-800px width like ChatGPT) */
           <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-7 sm:space-y-8">
-            {backendMessages.map((msg) => {
+            {activeMessages.map((msg) => {
               const isUser = msg.role === "USER";
+              const versionInfo = versionMap.get(msg._id);
 
               return isUser ? (
-                <div key={msg._id} className="flex justify-end animate-in fade-in duration-150">
-                  <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] bg-[#252535] text-[#f0f0f8] border border-violet-500/[0.12] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed shadow-sm">
-                    {msg.content}
-                  </div>
+                <div key={msg._id} className="group/msg flex flex-col items-end gap-1.5 animate-in fade-in duration-150">
+                  {editingMessageId === msg._id ? (
+                    <div className="w-full max-w-[85%] sm:max-w-[75%] rounded-[20px] bg-[#1e1e28] border border-violet-500/40 p-3.5 shadow-xl shadow-black/50 space-y-2.5 animate-in fade-in">
+                      <textarea
+                        value={editInputContent}
+                        onChange={(e) => setEditInputContent(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmitEdit(msg._id);
+                          } else if (e.key === "Escape") {
+                            handleCancelEdit();
+                          }
+                        }}
+                        rows={Math.max(2, Math.min(8, editInputContent.split("\n").length))}
+                        className="w-full resize-none bg-transparent text-[15px] text-[#f0f0f8] placeholder-[#60608a] focus:outline-none leading-relaxed"
+                        autoFocus
+                      />
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/[0.08]">
+                        <button
+                          type="button"
+                          onClick={handleCancelEdit}
+                          className="px-3 py-1.5 rounded-full text-xs font-medium text-[#a0a0b8] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSubmitEdit(msg._id)}
+                          disabled={!editInputContent.trim()}
+                          className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white text-black hover:bg-neutral-200 disabled:opacity-50 transition-colors cursor-pointer shadow-sm"
+                        >
+                          Save & Submit
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 max-w-full">
+                      {!isArchived && !isCurrentConvStreaming && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(msg)}
+                          className="opacity-0 group-hover/msg:opacity-100 focus:opacity-100 p-1.5 rounded-lg text-[#8080a0] hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+                          title="Edit message and regenerate response"
+                          aria-label="Edit message"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      )}
+                      <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] bg-[#252535] text-[#f0f0f8] border border-violet-500/[0.12] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed shadow-sm">
+                        {msg.content}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Version Navigation Pill */}
+                  {versionInfo && versionInfo.versions.length > 1 && editingMessageId !== msg._id && (
+                    <div className="flex items-center gap-1.5 text-xs text-[#8080a8] select-none pr-1">
+                      <button
+                        type="button"
+                        disabled={versionInfo.currentIndex === 0 || isCurrentConvStreaming}
+                        onClick={() => {
+                          const prevVersion = versionInfo.versions[versionInfo.currentIndex - 1];
+                          if (prevVersion) handleSwitchVersion(prevVersion);
+                        }}
+                        className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors text-sm font-bold"
+                        title="Previous version"
+                        aria-label="Previous version"
+                      >
+                        ‹
+                      </button>
+                      <span className="text-[11px] font-mono text-[#a0a0b8]">
+                        {versionInfo.currentIndex + 1} / {versionInfo.versions.length}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={versionInfo.currentIndex === versionInfo.versions.length - 1 || isCurrentConvStreaming}
+                        onClick={() => {
+                          const nextVersion = versionInfo.versions[versionInfo.currentIndex + 1];
+                          if (nextVersion) handleSwitchVersion(nextVersion);
+                        }}
+                        className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors text-sm font-bold"
+                        title="Next version"
+                        aria-label="Next version"
+                      >
+                        ›
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div key={msg._id} className="flex items-start gap-3.5 sm:gap-4 animate-in fade-in duration-150">

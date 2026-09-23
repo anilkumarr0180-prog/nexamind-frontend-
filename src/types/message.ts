@@ -18,6 +18,8 @@ export interface Message {
   model: string | null;
   provider: string | null;
   usage: MessageUsage | null;
+  parentMessageId?: string | null;
+  originalMessageId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
