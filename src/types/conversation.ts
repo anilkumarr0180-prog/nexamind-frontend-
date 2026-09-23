@@ -10,6 +10,7 @@ export interface Conversation {
   summary?: string | null;
   summaryUpdatedAt?: string | null;
   lastSummarizedMessageCount?: number;
+  activeLeafMessageId?: string | null;
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -22,4 +23,5 @@ export interface CreateConversationDTO {
 export interface UpdateConversationDTO {
   title?: string;
   status?: ConversationStatus;
+  activeLeafMessageId?: string | null;
 }
