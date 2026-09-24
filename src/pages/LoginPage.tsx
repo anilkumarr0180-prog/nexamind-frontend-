@@ -118,7 +118,7 @@ export const LoginPage: React.FC = () => {
                 setEmail(e.target.value);
                 if (fieldErrors.email) {
                   setFieldErrors((prev) => ({ ...prev, email: undefined }));
-                }
+                } 
               }}
               error={fieldErrors.email}
               disabled={isSubmitting}
