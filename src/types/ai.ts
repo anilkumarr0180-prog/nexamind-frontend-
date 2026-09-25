@@ -4,6 +4,7 @@ export interface ChatRequestDTO {
   conversationId: string;
   content: string;
   editMessageId?: string;
+  attachmentId?: string | null;
 }
 
 export interface OrchestratedChatResult {
@@ -23,6 +24,7 @@ export interface OrchestratedChatResult {
     status: string;
     parentMessageId?: string | null;
     originalMessageId?: string | null;
+    attachmentId?: string | null;
     createdAt: string;
   };
   assistantMessage: {

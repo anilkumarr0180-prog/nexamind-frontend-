@@ -16,17 +16,35 @@ import {
 } from "@/features/conversations";
 import { usageKeys } from "@/features/usage";
 import { memoryKeys } from "@/features/memories";
+import {
+  uploadAttachment,
+  validateAttachmentFile,
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  type AttachmentCategory,
+} from "@/features/attachments";
 import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { NexaMindIcon } from "@/components/ui";
 import type { Message, Conversation, ToolStatusEvent, PaginatedResponse } from "@/types";
 
+function isDocumentAttachment(att?: { type?: string | null; originalName?: string | null; format?: string | null } | null): boolean {
+  if (!att) return false;
+  if (att.type === "DOCUMENT") return true;
+  const name = (att.originalName || "").toLowerCase();
+  return ALLOWED_DOCUMENT_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
 interface PendingMessage {
   id: string;
   conversationId?: string;
   role: "USER" | "ASSISTANT";
   content: string;
+  attachmentId?: string | null;
+  attachmentPreviewUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
+  attachmentSize?: number | null;
   createdAt: string;
 }
 
@@ -59,6 +77,33 @@ export const ChatPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+
+  // Attachment state (Step 3: Image & Step 10: Document upload)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [fileCategory, setFileCategory] = useState<AttachmentCategory | null>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [lastUploadedAttachmentId, setLastUploadedAttachmentId] = useState<string | null>(null);
+  const [previewModalImage, setPreviewModalImage] = useState<{ url: string; name?: string } | null>(null);
+  const lastAttachmentIdRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Retain lastUploadedAttachmentId available across renders for Step 4 integration
+  useEffect(() => {
+    lastAttachmentIdRef.current = lastUploadedAttachmentId;
+  }, [lastUploadedAttachmentId]);
+
+  // Handle Escape key to close image preview modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && previewModalImage) {
+        setPreviewModalImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [previewModalImage]);
 
   // Branch & Versioning state
   const [selectedLeafId, setSelectedLeafId] = useState<string | null>(null);
@@ -99,6 +144,35 @@ export const ChatPage: React.FC = () => {
     setSelectedLeafId(conversationData?.activeLeafMessageId || null);
     setEditingMessageId(null);
   }, [conversationId, conversationData?.activeLeafMessageId]);
+
+  const filePreviewUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    filePreviewUrlRef.current = filePreviewUrl;
+  }, [filePreviewUrl]);
+
+  // Clean up object URL when component unmounts or preview changes
+  useEffect(() => {
+    return () => {
+      if (filePreviewUrlRef.current) {
+        URL.revokeObjectURL(filePreviewUrlRef.current);
+      }
+    };
+  }, []);
+
+  // Reset attachment draft state when conversation changes
+  useEffect(() => {
+    if (filePreviewUrlRef.current) {
+      URL.revokeObjectURL(filePreviewUrlRef.current);
+    }
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    setFileCategory(null);
+    setUploadProgress(null);
+    setIsUploadingAttachment(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [conversationId]);
 
   // Compute active branch messages and turn version groupings
   const { activeMessages, versionMap } = React.useMemo(() => {
@@ -298,9 +372,57 @@ export const ChatPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
   };
 
+  // Attachment handlers
+  const handleAttachmentClick = () => {
+    if (isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateAttachmentFile(file);
+    if (!validation.valid || !validation.category) {
+      setErrorMessage(validation.error || "Invalid file.");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setErrorMessage(null);
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+
+    const preview = validation.category === "image" ? URL.createObjectURL(file) : null;
+    setSelectedFile(file);
+    setFilePreviewUrl(preview);
+    setFileCategory(validation.category);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    if (isUploadingAttachment) return;
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    setFileCategory(null);
+    setUploadProgress(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleSendMessage = async (textToSend?: string, editMessageId?: string) => {
-    const text = (textToSend || inputValue).trim();
-    if (!text || isSubmitting || isCurrentConvStreaming || isArchived) return;
+    const rawText = (textToSend || inputValue).trim();
+    const text = rawText || (selectedFile ? (fileCategory === "document" ? "Uploaded document" : "Uploaded image") : "");
+    if (!text || isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived) return;
 
     setErrorMessage(null);
     setIsSubmitting(true);
@@ -315,7 +437,7 @@ export const ChatPage: React.FC = () => {
     // Root /app: Create conversation first with deterministic title
     if (!targetConvId) {
       try {
-        const title = generateConversationTitle(text);
+        const title = generateConversationTitle(rawText || (fileCategory === "document" ? "Document upload" : "Image upload"));
         const createdConv = await createConversation({ title });
         targetConvId = createdConv._id;
         queryClient.setQueryData(chatKeys.messages(targetConvId), {
@@ -343,12 +465,68 @@ export const ChatPage: React.FC = () => {
       }
     }
 
+    // Handle attachment upload (Image or Document)
+    let currentAttachmentId: string | null = null;
+    let currentAttachmentSecureUrl: string | null = null;
+    let currentAttachmentName: string | null = null;
+    let currentAttachmentType: string | null = null;
+    let currentAttachmentSize: number | null = null;
+    if (selectedFile && targetConvId) {
+      setIsUploadingAttachment(true);
+      setUploadProgress(0);
+      try {
+        const uploadResult = await uploadAttachment({
+          file: selectedFile,
+          conversationId: targetConvId,
+          onUploadProgress: (progress) => {
+            setUploadProgress(progress);
+          },
+        });
+
+        // Store attachment data for subsequent steps & optimistic rendering
+        currentAttachmentId = uploadResult.attachmentId;
+        currentAttachmentSecureUrl = uploadResult.secureUrl;
+        currentAttachmentName = uploadResult.originalName;
+        currentAttachmentType = uploadResult.type || (fileCategory === "document" ? "DOCUMENT" : "IMAGE");
+        currentAttachmentSize = uploadResult.size;
+        setLastUploadedAttachmentId(uploadResult.attachmentId);
+
+        // Clean up preview and selected file after successful upload
+        if (filePreviewUrl) {
+          URL.revokeObjectURL(filePreviewUrl);
+        }
+        setFilePreviewUrl(null);
+        setSelectedFile(null);
+        setFileCategory(null);
+        setIsUploadingAttachment(false);
+        setUploadProgress(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      } catch (uploadErr: unknown) {
+        setIsUploadingAttachment(false);
+        setUploadProgress(null);
+        const classified = classifyApiError(
+          uploadErr,
+          `Failed to upload ${fileCategory === "document" ? "document" : "image"}. Please try again.`,
+        );
+        setErrorMessage(classified.message);
+        setIsSubmitting(false);
+        return; // Halt message flow if attachment upload fails
+      }
+    }
+
     const tempUserMsgId = `opt-${Date.now()}`;
     const newPending: PendingMessage = {
       id: tempUserMsgId,
       conversationId: targetConvId,
       role: "USER",
       content: text,
+      attachmentId: currentAttachmentId,
+      attachmentPreviewUrl: currentAttachmentSecureUrl,
+      attachmentName: currentAttachmentName,
+      attachmentType: currentAttachmentType,
+      attachmentSize: currentAttachmentSize,
       createdAt: new Date().toISOString(),
     };
     setOptimisticMessages((prev) => [...prev, newPending]);
@@ -546,9 +724,59 @@ export const ChatPage: React.FC = () => {
             conversationId: targetConvId,
             content: text,
             ...(editMessageId ? { editMessageId } : {}),
+            ...(currentAttachmentId ? { attachmentId: currentAttachmentId } : {}),
           },
           {
             onStart: () => {},
+            onStatus: (_status: string, message: string) => {
+              setStreamingMap((prev) => {
+                const cur = prev[targetConvId];
+                if (!cur) return prev;
+                return {
+                  ...prev,
+                  [targetConvId]: {
+                    ...cur,
+                    agentStatusText: message,
+                  },
+                };
+              });
+            },
+            onToolStatus: (event: ToolStatusEvent) => {
+              setStreamingMap((prev) => {
+                const cur = prev[targetConvId];
+                if (!cur) return prev;
+                const existingIdx = cur.toolStatuses.findIndex(
+                  (t) => t.tool === event.tool && (t.id === event.toolCallId || !t.id),
+                );
+                let nextTools: ToolStatusItem[];
+                if (existingIdx >= 0) {
+                  nextTools = [...cur.toolStatuses];
+                  nextTools[existingIdx] = {
+                    id: event.toolCallId || nextTools[existingIdx]!.id,
+                    tool: event.tool,
+                    status: event.status,
+                    error: event.error,
+                  };
+                } else {
+                  nextTools = [
+                    ...cur.toolStatuses,
+                    {
+                      id: event.toolCallId || `t-${Date.now()}-${cur.toolStatuses.length}`,
+                      tool: event.tool,
+                      status: event.status,
+                      error: event.error,
+                    },
+                  ];
+                }
+                return {
+                  ...prev,
+                  [targetConvId]: {
+                    ...cur,
+                    toolStatuses: nextTools,
+                  },
+                };
+              });
+            },
             onChunk: (chunk: string) => {
               setStreamingMap((prev) => {
                 const cur = prev[targetConvId];
@@ -826,6 +1054,56 @@ export const ChatPage: React.FC = () => {
                         </button>
                       )}
                       <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] bg-[#252535] text-[#f0f0f8] border border-violet-500/[0.12] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed shadow-sm">
+                        {msg.attachment?.secureUrl && (
+                          isDocumentAttachment(msg.attachment) ? (
+                            <a
+                              href={msg.attachment.secureUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mb-2.5 rounded-xl p-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] flex items-center gap-3 max-w-sm transition-colors text-inherit no-underline group/doc select-none"
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-600/30 to-indigo-600/20 border border-violet-500/30 flex flex-col items-center justify-center flex-shrink-0">
+                                <svg className="w-5 h-5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-white/90 truncate group-hover/doc:text-violet-300 transition-colors">
+                                  {msg.attachment.originalName}
+                                </p>
+                                <p className="text-[11px] text-white/50 mt-0.5">
+                                  {(msg.attachment.format || msg.attachment.originalName.split(".").pop() || "doc").toUpperCase()} •{" "}
+                                  {msg.attachment.size > 1024 * 1024
+                                    ? `${(msg.attachment.size / (1024 * 1024)).toFixed(2)} MB`
+                                    : `${(msg.attachment.size / 1024).toFixed(1)} KB`}
+                                </p>
+                              </div>
+                              <svg className="w-4 h-4 text-white/40 group-hover/doc:text-white/80 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          ) : (
+                            <div
+                              className="mb-2.5 rounded-xl overflow-hidden max-w-sm border border-white/[0.1] bg-black/40 group/img relative cursor-pointer select-none"
+                              onClick={() => setPreviewModalImage({ url: msg.attachment!.secureUrl, name: msg.attachment!.originalName })}
+                            >
+                              <img
+                                src={msg.attachment.secureUrl}
+                                alt={msg.attachment.originalName || "Attached image"}
+                                className="w-full max-h-64 object-cover rounded-xl transition-transform duration-200 group-hover/img:scale-[1.01]"
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover/img:opacity-100">
+                                <span className="bg-black/75 backdrop-blur-sm text-white/90 text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                  </svg>
+                                  Click to preview
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        )}
                         {msg.content}
                       </div>
                     </div>
@@ -883,6 +1161,38 @@ export const ChatPage: React.FC = () => {
             {visibleOptimisticMessages.map((msg) => (
               <div key={msg.id} className="flex justify-end animate-in fade-in duration-150">
                 <div className="max-w-[85%] sm:max-w-[70%] rounded-[24px] bg-[#252535] text-[#e8e8f0] border border-violet-500/[0.1] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed opacity-80">
+                  {msg.attachmentPreviewUrl && (
+                    msg.attachmentType === "DOCUMENT" ||
+                    (msg.attachmentName && ALLOWED_DOCUMENT_EXTENSIONS.some((ext) => msg.attachmentName!.toLowerCase().endsWith(ext))) ? (
+                      <div className="mb-2.5 rounded-xl p-3 bg-white/[0.04] border border-white/[0.1] flex items-center gap-3 max-w-sm">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-600/30 to-indigo-600/20 border border-violet-500/30 flex flex-col items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white/90 truncate">
+                            {msg.attachmentName || "Attached document"}
+                          </p>
+                          <p className="text-[11px] text-white/50 mt-0.5">
+                            {(msg.attachmentName?.split(".").pop() || "doc").toUpperCase()}
+                            {msg.attachmentSize ? ` • ${(msg.attachmentSize > 1024 * 1024 ? `${(msg.attachmentSize / (1024 * 1024)).toFixed(2)} MB` : `${(msg.attachmentSize / 1024).toFixed(1)} KB`)}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="mb-2.5 rounded-xl overflow-hidden max-w-sm border border-white/[0.1] bg-black/40 relative cursor-pointer select-none"
+                        onClick={() => setPreviewModalImage({ url: msg.attachmentPreviewUrl!, name: msg.attachmentName || "Attached image" })}
+                      >
+                        <img
+                          src={msg.attachmentPreviewUrl}
+                          alt={msg.attachmentName || "Attached image"}
+                          className="w-full max-h-64 object-cover rounded-xl"
+                        />
+                      </div>
+                    )
+                  )}
                   {msg.content}
                 </div>
               </div>
@@ -896,9 +1206,8 @@ export const ChatPage: React.FC = () => {
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-2 pt-0.5">
-                  {/* Tool Status UI for Agent Execution */}
-                  {currentStream.type === "agent" &&
-                    (currentStream.agentStatusText || currentStream.toolStatuses.length > 0) && (
+                  {/* Tool Status UI for Agent Execution & Tool Calling */}
+                  {(currentStream.agentStatusText || currentStream.toolStatuses.length > 0) && (
                       <div className="rounded-xl bg-[#1e1e28] border border-white/[0.09] p-3.5 text-xs font-mono select-none space-y-2 shadow-sm max-w-md">
                         {/* Status line: Working... */}
                         {currentStream.agentStatusText && !currentStream.toolStatuses.length && (
@@ -1034,8 +1343,113 @@ export const ChatPage: React.FC = () => {
             }}
             className="flex flex-col gap-1.5"
           >
+            {/* Local Attachment Preview (Image or Document) */}
+            {selectedFile && (
+              <div className="relative mx-1.5 mb-1 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center gap-3 animate-in fade-in zoom-in-95 duration-150">
+                {fileCategory === "image" && filePreviewUrl ? (
+                  <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-black/40 border border-white/[0.08]">
+                    <img
+                      src={filePreviewUrl}
+                      alt={selectedFile.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {isUploadingAttachment && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative w-12 h-12 rounded-lg bg-gradient-to-br from-violet-600/30 to-indigo-600/20 border border-violet-500/30 flex flex-col items-center justify-center flex-shrink-0">
+                    {isUploadingAttachment ? (
+                      <svg className="animate-spin h-5 w-5 text-violet-300" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-[9px] font-bold text-violet-200 mt-0.5 uppercase tracking-wider">
+                          {selectedFile.name.split(".").pop() || "doc"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-[#e0e0f0] truncate">
+                    {selectedFile.name}
+                  </p>
+                  <p className="text-[11px] text-[#707090] mt-0.5">
+                    <span className="uppercase font-semibold text-white/50">
+                      {selectedFile.name.split(".").pop() || "file"}
+                    </span>
+                    {" • "}
+                    {selectedFile.size > 1024 * 1024
+                      ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
+                      : `${(selectedFile.size / 1024).toFixed(1)} KB`}
+                    {isUploadingAttachment && typeof uploadProgress === "number" && ` • Uploading ${uploadProgress}%`}
+                  </p>
+                  {isUploadingAttachment && typeof uploadProgress === "number" && (
+                    <div className="w-full bg-white/[0.1] h-1 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className="bg-violet-500 h-full rounded-full transition-all duration-150"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {!isUploadingAttachment && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAttachment}
+                    title="Remove attachment"
+                    aria-label="Remove attachment"
+                    className="h-6 w-6 rounded-full bg-white/[0.08] hover:bg-white/[0.16] text-[#a0a0c0] hover:text-white flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Input Row */}
             <div className="flex items-end gap-2">
+              {/* Attachment Input & Button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,text/plain,.txt,text/markdown,.md,application/json,.json,text/csv,.csv,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
+                className="hidden"
+                onChange={handleFileSelect}
+                disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
+              />
+              <button
+                type="button"
+                onClick={handleAttachmentClick}
+                disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
+                title="Attach file (Images up to 10MB, DOCX, PDF, TXT, MD, JSON, CSV up to 5MB)"
+                aria-label="Attach file"
+                className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-[#8080a8] hover:text-white hover:bg-white/[0.08] transition-all mb-0.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                  />
+                </svg>
+              </button>
+
               <textarea
                 ref={inputRef}
                 rows={1}
@@ -1045,11 +1459,13 @@ export const ChatPage: React.FC = () => {
                 placeholder={
                   isArchived
                     ? "Conversation is archived"
-                    : agentMode
-                      ? "Assign an agent task (e.g. calculate 45 * 82)..."
-                      : "Message NexaMind..."
+                    : isUploadingAttachment
+                      ? `Uploading ${fileCategory === "document" ? "document" : "image"}...`
+                      : agentMode
+                        ? "Assign an agent task (e.g. calculate 45 * 82)..."
+                        : "Message NexaMind..."
                 }
-                disabled={isSubmitting || isCurrentConvStreaming || isArchived}
+                disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
                 className="flex-1 max-h-48 min-h-[40px] resize-none bg-transparent px-3.5 py-2 text-[15px] text-[#e8e8f0] placeholder-[#60608a] focus:outline-none disabled:opacity-50 leading-relaxed"
               />
 
@@ -1066,11 +1482,17 @@ export const ChatPage: React.FC = () => {
               ) : (
                 <button
                   type="submit"
-                  disabled={isSubmitting || isCurrentConvStreaming || isArchived || !inputValue.trim()}
+                  disabled={
+                    isSubmitting ||
+                    isUploadingAttachment ||
+                    isCurrentConvStreaming ||
+                    isArchived ||
+                    (!inputValue.trim() && !selectedFile)
+                  }
                   aria-label="Send message"
                   className="flex-shrink-0 h-8 w-8 rounded-full bg-white text-black hover:bg-neutral-200 disabled:bg-[#323236] disabled:text-[#71717a] flex items-center justify-center transition-all mb-0.5 cursor-pointer disabled:cursor-not-allowed active:scale-95"
                 >
-                  {isSubmitting ? (
+                  {isSubmitting || isUploadingAttachment ? (
                     <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -1113,6 +1535,57 @@ export const ChatPage: React.FC = () => {
           NexaMind can make mistakes. Verify important info.
         </p>
       </div>
+
+      {/* Image Preview Lightbox Modal */}
+      {previewModalImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setPreviewModalImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between w-full pb-3 text-white/80">
+              <span className="text-sm font-medium truncate max-w-md">
+                {previewModalImage.name || "Image Preview"}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewModalImage.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.1] transition-colors"
+                  title="Open full image in new tab"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalImage(null)}
+                  className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.1] transition-colors cursor-pointer"
+                  title="Close preview (Esc)"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <img
+              src={previewModalImage.url}
+              alt={previewModalImage.name || "Enlarged preview"}
+              className="max-w-full max-h-[80vh] object-contain rounded-xl border border-white/[0.1] shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -7,6 +7,7 @@ import type {
   CreateMessageDTO,
   ChatRequestDTO,
   OrchestratedChatResult,
+  ToolStatusEvent,
 } from '@/types';
 
 export const chatKeys = {
@@ -33,7 +34,10 @@ export const sendDirectMessage = async (
 ): Promise<Message> => {
   const response = await apiClient.post<ApiResponse<Message>>(
     `/conversations/${conversationId}/messages`,
-    { content: data.content },
+    {
+      content: data.content,
+      ...(data.attachmentId ? { attachmentId: data.attachmentId } : {}),
+    },
   );
   return response.data.data;
 };
@@ -50,6 +54,8 @@ export interface StreamChatCallbacks {
   onChunk: (chunk: string) => void;
   onDone: (result: OrchestratedChatResult) => void;
   onError?: (error: Error) => void;
+  onStatus?: (status: string, message: string) => void;
+  onToolStatus?: (event: ToolStatusEvent) => void;
 }
 
 export const streamAIChatMessage = async (
@@ -125,6 +131,10 @@ export const streamAIChatMessage = async (
   const processJsonPayload = (payload: any): boolean => {
     if (payload.type === 'start') {
       callbacks.onStart?.(payload);
+    } else if (payload.type === 'status') {
+      callbacks.onStatus?.(payload.status, payload.message);
+    } else if (payload.type === 'tool_status') {
+      callbacks.onToolStatus?.(payload);
     } else if (payload.type === 'chunk') {
       if (payload.content) {
         callbacks.onChunk(payload.content);
