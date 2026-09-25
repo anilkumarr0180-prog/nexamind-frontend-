@@ -1,3 +1,5 @@
+import type { SafeAttachment } from './attachment';
+
 export type MessageRole = 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL';
 
 export type MessageStatus = 'COMPLETED' | 'FAILED';
@@ -20,10 +22,13 @@ export interface Message {
   usage: MessageUsage | null;
   parentMessageId?: string | null;
   originalMessageId?: string | null;
+  attachmentId?: string | null;
+  attachment?: SafeAttachment | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateMessageDTO {
   content: string;
+  attachmentId?: string | null;
 }

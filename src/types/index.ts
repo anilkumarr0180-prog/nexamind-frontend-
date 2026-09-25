@@ -7,3 +7,4 @@ export * from './token';
 export * from './ai';
 export * from './agent';
 export * from './subscription';
+export * from './attachment';
