@@ -965,9 +965,11 @@ export const ChatPage: React.FC = () => {
                 "Failed to generate AI response. Please try again.",
               );
               setErrorMessage(classified.message);
-              setOptimisticMessages((prev) =>
-                prev.filter((m) => m.conversationId !== targetConvId),
-              );
+              queryClient.invalidateQueries({ queryKey: chatKeys.messages(targetConvId!) }).finally(() => {
+                setOptimisticMessages((prev) =>
+                  prev.filter((m) => m.conversationId !== targetConvId),
+                );
+              });
               setStreamingMap((prev) => {
                 const next = { ...prev };
                 delete next[targetConvId];
@@ -991,9 +993,11 @@ export const ChatPage: React.FC = () => {
           "Failed to generate AI response. Please try again.",
         );
         setErrorMessage(classified.message);
-        setOptimisticMessages((prev) =>
-          prev.filter((m) => m.conversationId !== targetConvId),
-        );
+        queryClient.invalidateQueries({ queryKey: chatKeys.messages(targetConvId!) }).finally(() => {
+          setOptimisticMessages((prev) =>
+            prev.filter((m) => m.conversationId !== targetConvId),
+          );
+        });
         setStreamingMap((prev) => {
           const next = { ...prev };
           delete next[targetConvId];

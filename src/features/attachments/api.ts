@@ -155,13 +155,83 @@ export type UploadDocumentAttachmentParams = UploadAttachmentParams;
  * Uploads a single image attachment via multipart/form-data:
  * POST /api/v1/attachments/image
  */
+
+/**
+ * Quick client-side image optimization for fast network transfers.
+ * Downscales oversized photos (>1MB) to max 1920px at 85% JPEG quality.
+ */
+async function prepareImageForFastUpload(file: File): Promise<File> {
+  if (
+    typeof window === "undefined" ||
+    file.size <= 1024 * 1024 ||
+    file.type === "image/gif" ||
+    file.type === "image/svg+xml"
+  ) {
+    return file;
+  }
+
+  try {
+    return await new Promise<File>((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const maxDimension = 1920;
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) {
+              resolve(file);
+            } else {
+              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            }
+          },
+          "image/jpeg",
+          0.85,
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+      img.src = objectUrl;
+    });
+  } catch {
+    return file;
+  }
+}
+
 export const uploadImageAttachment = async ({
   file,
   conversationId,
   onUploadProgress,
 }: UploadImageAttachmentParams): Promise<AttachmentUploadResponse> => {
+  const uploadFile = await prepareImageForFastUpload(file);
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', uploadFile);
   formData.append('conversationId', conversationId);
 
   const response = await apiClient.post<ApiResponse<AttachmentUploadResponse>>(
