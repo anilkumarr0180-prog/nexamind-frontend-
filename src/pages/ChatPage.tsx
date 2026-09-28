@@ -26,7 +26,7 @@ import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { NexaMindIcon } from "@/components/ui";
-import type { Message, Conversation, ToolStatusEvent, PaginatedResponse } from "@/types";
+import type { Message, Conversation, ToolStatusEvent, PaginatedResponse, DocumentSourceCitation } from "@/types";
 
 function isDocumentAttachment(att?: { type?: string | null; originalName?: string | null; format?: string | null } | null): boolean {
   if (!att) return false;
@@ -60,6 +60,7 @@ export interface ConversationStreamState {
   streamingContent: string;
   agentStatusText?: string;
   toolStatuses: ToolStatusItem[];
+  sources?: DocumentSourceCitation[] | null;
 }
 
 export const ChatPage: React.FC = () => {
@@ -74,6 +75,20 @@ export const ChatPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<PendingMessage[]>([]);
 
+  const handleSourceClick = (src: DocumentSourceCitation) => {
+    const matchingMsg = activeMessages.find(
+      (m) =>
+        m.attachmentId === src.attachmentId ||
+        (m.attachment && m.attachment.attachmentId === src.attachmentId),
+    );
+    if (matchingMsg?.attachment?.secureUrl) {
+      window.open(matchingMsg.attachment.secureUrl, "_blank", "noopener,noreferrer");
+    } else if (matchingMsg) {
+      const el = document.getElementById(`msg-${matchingMsg._id}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -87,6 +102,7 @@ export const ChatPage: React.FC = () => {
   const [lastUploadedAttachmentId, setLastUploadedAttachmentId] = useState<string | null>(null);
   const [previewModalImage, setPreviewModalImage] = useState<{ url: string; name?: string } | null>(null);
   const lastAttachmentIdRef = useRef<string | null>(null);
+  const isNavigatingFromSendRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Retain lastUploadedAttachmentId available across renders for Step 4 integration
@@ -159,8 +175,12 @@ export const ChatPage: React.FC = () => {
     };
   }, []);
 
-  // Reset attachment draft state when conversation changes
+  // Reset attachment draft state when conversation changes (unless navigating from message submission)
   useEffect(() => {
+    if (isNavigatingFromSendRef.current) {
+      isNavigatingFromSendRef.current = false;
+      return;
+    }
     if (filePreviewUrlRef.current) {
       URL.revokeObjectURL(filePreviewUrlRef.current);
     }
@@ -424,20 +444,35 @@ export const ChatPage: React.FC = () => {
     const text = rawText || (selectedFile ? (fileCategory === "document" ? "Uploaded document" : "Uploaded image") : "");
     if (!text || isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived) return;
 
+    // Capture pending attachment state before clearing input bar
+    const fileToUpload = selectedFile;
+    const previewUrlToUse = filePreviewUrl;
+    const categoryToUse = fileCategory;
+    const fileNameToUse = fileToUpload?.name || null;
+    const fileSizeToUse = fileToUpload?.size || null;
+    const fileTypeToUse = categoryToUse === "document" ? "DOCUMENT" : "IMAGE";
+
+    // Clear input bar and draft attachment state immediately for zero-lag UI response
     setErrorMessage(null);
     setIsSubmitting(true);
     setInputValue("");
-
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
     }
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    setFileCategory(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
 
     let targetConvId = conversationId;
+    const isNewConversation = !targetConvId;
 
     // Root /app: Create conversation first with deterministic title
     if (!targetConvId) {
       try {
-        const title = generateConversationTitle(rawText || (fileCategory === "document" ? "Document upload" : "Image upload"));
+        const title = generateConversationTitle(rawText || (categoryToUse === "document" ? "Document upload" : "Image upload"));
         const createdConv = await createConversation({ title });
         targetConvId = createdConv._id;
         queryClient.setQueryData(chatKeys.messages(targetConvId), {
@@ -453,7 +488,6 @@ export const ChatPage: React.FC = () => {
           },
         });
         queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
-        navigate(`/app/chat/${targetConvId}`, { replace: true });
       } catch (createErr: unknown) {
         const classified = classifyApiError(
           createErr,
@@ -465,68 +499,18 @@ export const ChatPage: React.FC = () => {
       }
     }
 
-    // Handle attachment upload (Image or Document)
-    let currentAttachmentId: string | null = null;
-    let currentAttachmentSecureUrl: string | null = null;
-    let currentAttachmentName: string | null = null;
-    let currentAttachmentType: string | null = null;
-    let currentAttachmentSize: number | null = null;
-    if (selectedFile && targetConvId) {
-      setIsUploadingAttachment(true);
-      setUploadProgress(0);
-      try {
-        const uploadResult = await uploadAttachment({
-          file: selectedFile,
-          conversationId: targetConvId,
-          onUploadProgress: (progress) => {
-            setUploadProgress(progress);
-          },
-        });
-
-        // Store attachment data for subsequent steps & optimistic rendering
-        currentAttachmentId = uploadResult.attachmentId;
-        currentAttachmentSecureUrl = uploadResult.secureUrl;
-        currentAttachmentName = uploadResult.originalName;
-        currentAttachmentType = uploadResult.type || (fileCategory === "document" ? "DOCUMENT" : "IMAGE");
-        currentAttachmentSize = uploadResult.size;
-        setLastUploadedAttachmentId(uploadResult.attachmentId);
-
-        // Clean up preview and selected file after successful upload
-        if (filePreviewUrl) {
-          URL.revokeObjectURL(filePreviewUrl);
-        }
-        setFilePreviewUrl(null);
-        setSelectedFile(null);
-        setFileCategory(null);
-        setIsUploadingAttachment(false);
-        setUploadProgress(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-      } catch (uploadErr: unknown) {
-        setIsUploadingAttachment(false);
-        setUploadProgress(null);
-        const classified = classifyApiError(
-          uploadErr,
-          `Failed to upload ${fileCategory === "document" ? "document" : "image"}. Please try again.`,
-        );
-        setErrorMessage(classified.message);
-        setIsSubmitting(false);
-        return; // Halt message flow if attachment upload fails
-      }
-    }
-
+    // Immediately create optimistic message with local preview URL so user message is visible on frame 1
     const tempUserMsgId = `opt-${Date.now()}`;
     const newPending: PendingMessage = {
       id: tempUserMsgId,
       conversationId: targetConvId,
       role: "USER",
       content: text,
-      attachmentId: currentAttachmentId,
-      attachmentPreviewUrl: currentAttachmentSecureUrl,
-      attachmentName: currentAttachmentName,
-      attachmentType: currentAttachmentType,
-      attachmentSize: currentAttachmentSize,
+      attachmentId: null,
+      attachmentPreviewUrl: previewUrlToUse,
+      attachmentName: fileNameToUse,
+      attachmentType: fileTypeToUse,
+      attachmentSize: fileSizeToUse,
       createdAt: new Date().toISOString(),
     };
     setOptimisticMessages((prev) => [...prev, newPending]);
@@ -536,17 +520,24 @@ export const ChatPage: React.FC = () => {
     const effectiveTask = isAgentCommand ? text.replace(/^(\/agent|@agent)\s+/, "") : text;
     const isAgentRun = agentMode || isAgentCommand;
 
-    // Initialize scoped streaming state for this conversation
-    setIsSubmitting(false);
+    // Initialize scoped streaming state for this conversation immediately
     setStreamingMap((prev) => ({
       ...prev,
       [targetConvId]: {
         type: isAgentRun ? "agent" : "chat",
         streamingContent: "",
-        agentStatusText: isAgentRun ? "Working..." : undefined,
+        agentStatusText: fileToUpload
+          ? (categoryToUse === "document" ? "Uploading document..." : "Uploading image...")
+          : (isAgentRun ? "Working..." : undefined),
         toolStatuses: [],
       },
     }));
+
+    // If new conversation, navigate immediately now that optimistic message and streaming state are loaded
+    if (isNewConversation) {
+      isNavigatingFromSendRef.current = true;
+      navigate(`/app/chat/${targetConvId}`, { replace: true });
+    }
 
     const abortController = new AbortController();
     abortControllersRef.current.set(targetConvId, abortController);
@@ -566,7 +557,92 @@ export const ChatPage: React.FC = () => {
         });
     }
 
-    if (isAgentRun) {
+    // Handle background attachment upload (Image or Document)
+    let currentAttachmentId: string | null = null;
+    if (fileToUpload && targetConvId) {
+      setIsUploadingAttachment(true);
+      setUploadProgress(0);
+      try {
+        const uploadResult = await uploadAttachment({
+          file: fileToUpload,
+          conversationId: targetConvId,
+          onUploadProgress: (progress) => {
+            setUploadProgress(progress);
+          },
+        });
+
+        if (abortController.signal.aborted) {
+          if (previewUrlToUse) URL.revokeObjectURL(previewUrlToUse);
+          setIsUploadingAttachment(false);
+          setUploadProgress(null);
+          return;
+        }
+
+        currentAttachmentId = uploadResult.attachmentId;
+        setLastUploadedAttachmentId(uploadResult.attachmentId);
+
+        // Update optimistic message with Cloudinary secureUrl & attachmentId
+        setOptimisticMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempUserMsgId
+              ? {
+                  ...msg,
+                  attachmentId: uploadResult.attachmentId,
+                  attachmentPreviewUrl: uploadResult.secureUrl || msg.attachmentPreviewUrl,
+                  attachmentName: uploadResult.originalName || msg.attachmentName,
+                  attachmentType: uploadResult.type || msg.attachmentType,
+                  attachmentSize: uploadResult.size || msg.attachmentSize,
+                }
+              : msg
+          )
+        );
+
+        // Revoke temporary blob URL now that permanent secureUrl is active
+        if (previewUrlToUse) {
+          URL.revokeObjectURL(previewUrlToUse);
+        }
+        setIsUploadingAttachment(false);
+        setUploadProgress(null);
+
+        // Update streaming indicator status text
+        setStreamingMap((prev) => {
+          const cur = prev[targetConvId];
+          if (!cur) return prev;
+          return {
+            ...prev,
+            [targetConvId]: {
+              ...cur,
+              agentStatusText: isAgentRun ? "Working..." : undefined,
+            },
+          };
+        });
+      } catch (uploadErr: unknown) {
+        if (previewUrlToUse) {
+          URL.revokeObjectURL(previewUrlToUse);
+        }
+        setIsUploadingAttachment(false);
+        setUploadProgress(null);
+        const classified = classifyApiError(
+          uploadErr,
+          `Failed to upload ${categoryToUse === "document" ? "document" : "image"}. Please try again.`,
+        );
+        setErrorMessage(classified.message);
+        // Rollback optimistic state on upload failure
+        setOptimisticMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
+        setStreamingMap((prev) => {
+          const next = { ...prev };
+          delete next[targetConvId];
+          return next;
+        });
+        abortControllersRef.current.delete(targetConvId);
+        setIsSubmitting(false);
+        return; // Halt message flow if attachment upload fails
+      }
+    }
+
+    setIsSubmitting(false);
+
+        if (isAgentRun) {
       // -------------------------------------------------------------
       // Autonomous Agent Streaming Pipeline
       // -------------------------------------------------------------
@@ -728,6 +804,19 @@ export const ChatPage: React.FC = () => {
           },
           {
             onStart: () => {},
+            onSources: (sources: DocumentSourceCitation[]) => {
+              setStreamingMap((prev) => {
+                const cur = prev[targetConvId];
+                if (!cur) return prev;
+                return {
+                  ...prev,
+                  [targetConvId]: {
+                    ...cur,
+                    sources,
+                  },
+                };
+              });
+            },
             onStatus: (_status: string, message: string) => {
               setStreamingMap((prev) => {
                 const cur = prev[targetConvId];
@@ -801,6 +890,8 @@ export const ChatPage: React.FC = () => {
                   status: (result.userMessage.status as any) || "COMPLETED",
                   parentMessageId: (result.userMessage as any).parentMessageId ?? null,
                   originalMessageId: (result.userMessage as any).originalMessageId ?? null,
+                  attachmentId: (result.userMessage as any).attachmentId ?? null,
+                  attachment: (result.userMessage as any).attachment ?? null,
                   model: null,
                   provider: null,
                   usage: null,
@@ -819,6 +910,7 @@ export const ChatPage: React.FC = () => {
                   model: result.assistantMessage.model ?? null,
                   provider: result.assistantMessage.provider ?? null,
                   usage: result.assistantMessage.usage ?? null,
+                  sources: (result.assistantMessage as any).sources ?? result.sources ?? null,
                   createdAt: result.assistantMessage.createdAt,
                   updatedAt: result.assistantMessage.createdAt,
                 };
@@ -1152,6 +1244,32 @@ export const ChatPage: React.FC = () => {
 
                   <div className="flex-1 min-w-0 space-y-1 pt-0.5">
                     <MarkdownMessage content={msg.content} />
+                    {msg.sources && msg.sources.length > 0 && (
+                      <div className="mt-3 pt-2.5 border-t border-white/[0.08] text-xs">
+                        <div className="flex items-center gap-1.5 font-medium text-violet-300/90 mb-1.5">
+                          <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
+                          <span>Sources</span>
+                        </div>
+                        <ul className="space-y-1 list-none pl-0 m-0">
+                          {msg.sources.map((src, idx) => (
+                            <li key={`${src.attachmentId}-${src.chunkIndex}-${idx}`} className="flex items-center gap-1.5 text-white/70">
+                              <span className="text-violet-400/80">•</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSourceClick(src)}
+                                className="text-left hover:text-violet-300 underline-offset-2 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
+                                title={`View source: ${src.filename} (chunk ${src.chunkIndex})`}
+                              >
+                                <span className="font-medium text-white/90">{src.filename}</span>
+                                <span className="text-white/40 ml-1.5">— chunk {src.chunkIndex}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1161,7 +1279,7 @@ export const ChatPage: React.FC = () => {
             {visibleOptimisticMessages.map((msg) => (
               <div key={msg.id} className="flex justify-end animate-in fade-in duration-150">
                 <div className="max-w-[85%] sm:max-w-[70%] rounded-[24px] bg-[#252535] text-[#e8e8f0] border border-violet-500/[0.1] px-5 py-3 text-[15px] break-words whitespace-pre-wrap leading-relaxed opacity-80">
-                  {msg.attachmentPreviewUrl && (
+                  {(msg.attachmentPreviewUrl || msg.attachmentName) && (
                     msg.attachmentType === "DOCUMENT" ||
                     (msg.attachmentName && ALLOWED_DOCUMENT_EXTENSIONS.some((ext) => msg.attachmentName!.toLowerCase().endsWith(ext))) ? (
                       <div className="mb-2.5 rounded-xl p-3 bg-white/[0.04] border border-white/[0.1] flex items-center gap-3 max-w-sm">
@@ -1181,16 +1299,18 @@ export const ChatPage: React.FC = () => {
                         </div>
                       </div>
                     ) : (
-                      <div
-                        className="mb-2.5 rounded-xl overflow-hidden max-w-sm border border-white/[0.1] bg-black/40 relative cursor-pointer select-none"
-                        onClick={() => setPreviewModalImage({ url: msg.attachmentPreviewUrl!, name: msg.attachmentName || "Attached image" })}
-                      >
-                        <img
-                          src={msg.attachmentPreviewUrl}
-                          alt={msg.attachmentName || "Attached image"}
-                          className="w-full max-h-64 object-cover rounded-xl"
-                        />
-                      </div>
+                      msg.attachmentPreviewUrl ? (
+                        <div
+                          className="mb-2.5 rounded-xl overflow-hidden max-w-sm border border-white/[0.1] bg-black/40 relative cursor-pointer select-none"
+                          onClick={() => setPreviewModalImage({ url: msg.attachmentPreviewUrl!, name: msg.attachmentName || "Attached image" })}
+                        >
+                          <img
+                            src={msg.attachmentPreviewUrl}
+                            alt={msg.attachmentName || "Attached image"}
+                            className="w-full max-h-64 object-cover rounded-xl"
+                          />
+                        </div>
+                      ) : null
                     )
                   )}
                   {msg.content}
@@ -1257,6 +1377,32 @@ export const ChatPage: React.FC = () => {
                   {currentStream.streamingContent ? (
                     <div className="relative">
                       <MarkdownMessage content={currentStream.streamingContent} />
+                      {currentStream.sources && currentStream.sources.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-white/[0.08] text-xs">
+                          <div className="flex items-center gap-1.5 font-medium text-violet-300/90 mb-1.5">
+                            <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <span>Sources</span>
+                          </div>
+                          <ul className="space-y-1 list-none pl-0 m-0">
+                            {currentStream.sources.map((src, idx) => (
+                              <li key={`${src.attachmentId}-${src.chunkIndex}-${idx}`} className="flex items-center gap-1.5 text-white/70">
+                                <span className="text-violet-400/80">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSourceClick(src)}
+                                  className="text-left hover:text-violet-300 underline-offset-2 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
+                                  title={`View source: ${src.filename} (chunk ${src.chunkIndex})`}
+                                >
+                                  <span className="font-medium text-white/90">{src.filename}</span>
+                                  <span className="text-white/40 ml-1.5">— chunk {src.chunkIndex}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     currentStream.type === "chat" && (
