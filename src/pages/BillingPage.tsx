@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/Badge';
@@ -82,6 +82,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
   const normCurrentInterval = currentInterval?.toLowerCase();
   const isExactCurrent = currentPlanCode === code && (code === 'FREE' || normCurrentInterval === interval);
   const isIntervalSwitch = currentPlanCode === code && normCurrentInterval !== interval && currentPlanCode !== 'FREE';
+  const isSameTierAnnual = currentPlanCode === code && normCurrentInterval === 'yearly' && interval === 'monthly';
 
   const price = PRICING[code][interval];
   const isLoading = isUpgrading && upgradingTo === code;
@@ -101,6 +102,9 @@ const PlanCard: React.FC<PlanCardProps> = ({
     buttonText = cancelAtPeriodEnd && currentPeriodEnd
       ? `Active until ${formatDate(currentPeriodEnd)}`
       : 'Current Plan';
+    isDisabled = true;
+  } else if (isSameTierAnnual) {
+    buttonText = 'Current Plan (Billed Annually)';
     isDisabled = true;
   } else if (isIntervalSwitch) {
     buttonText = interval === 'yearly' ? 'Switch to Annual (Save ~17%) →' : 'Switch to Monthly →';
@@ -122,7 +126,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
           : isPlus
           ? 'bg-gradient-to-b from-[#0e1530] to-[#0b1020] border border-indigo-500/35 hover:border-indigo-400/55 hover:shadow-[0_4px_40px_rgba(99,102,241,0.18)]'
           : 'bg-gradient-to-b from-[#111827] to-[#0c1018] border border-white/[0.1] hover:border-white/25',
-        isExactCurrent ? 'ring-2 ring-violet-500/70 ring-offset-[3px] ring-offset-[#0d1120]' : '',
+        (isExactCurrent || isSameTierAnnual) ? 'ring-2 ring-violet-500/70 ring-offset-[3px] ring-offset-[#0d1120]' : '',
       ].join(' ')}
     >
       {/* PRO top ribbon */}
@@ -209,7 +213,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
               disabled
               className={[
                 'w-full rounded-xl py-3 text-sm font-semibold border select-none cursor-not-allowed text-center transition-colors',
-                isExactCurrent
+                (isExactCurrent || isSameTierAnnual)
                   ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 font-bold'
                   : 'border-white/[0.07] bg-white/[0.02] text-slate-500',
               ].join(' ')}
@@ -266,6 +270,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
 export const BillingPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [interval, setInterval] = useState<BillingInterval>('monthly');
+
   const [upgradingTo, setUpgradingTo] = useState<PlanCode | null>(null);
 
   // ChatGPT-style cancellation modal state
@@ -375,12 +380,20 @@ export const BillingPage: React.FC = () => {
   } = useQuery({
     queryKey: subscriptionKeys.me(),
     queryFn: getMySubscription,
+    staleTime: 5 * 60 * 1000,
     retry: (failureCount, error: unknown) => {
       const status = (error as { response?: { status?: number } })?.response?.status;
       if (status === 404) return false;
       return failureCount < 2;
     },
   });
+
+  const hasUserSelectedInterval = useRef(false);
+  useEffect(() => {
+    if (!hasUserSelectedInterval.current && subscription?.interval?.toLowerCase() === 'yearly') {
+      setInterval('yearly');
+    }
+  }, [subscription?.interval]);
 
   /* Balance Query */
   const {
@@ -748,7 +761,10 @@ export const BillingPage: React.FC = () => {
               <button
                 key={iv}
                 type="button"
-                onClick={() => setInterval(iv)}
+                onClick={() => {
+                  hasUserSelectedInterval.current = true;
+                  setInterval(iv);
+                }}
                 className={[
                   'px-5 py-2 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer select-none flex items-center gap-1.5 capitalize',
                   interval === iv
@@ -769,20 +785,47 @@ export const BillingPage: React.FC = () => {
 
         {/* Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-stretch">
-          {plans.map((code) => (
-            <PlanCard
-              key={code}
-              code={code}
-              interval={interval}
-              currentPlanCode={currentPlanCode}
-              currentInterval={subscription?.interval}
-              cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
-              currentPeriodEnd={subscription?.currentPeriodEnd}
-              onUpgrade={handleUpgrade}
-              isUpgrading={checkoutMutation.isPending}
-              upgradingTo={upgradingTo}
-            />
-          ))}
+          {isSubLoading ? (
+            [0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="relative flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-b from-[#111827] to-[#0c1018] border border-white/[0.08] p-7 animate-pulse space-y-6 min-h-[500px]"
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="h-6 w-24 bg-white/[0.08] rounded-lg" />
+                    <div className="h-5 w-16 bg-white/[0.05] rounded-full" />
+                  </div>
+                  <div className="h-4 w-44 bg-white/[0.05] rounded-md" />
+                  <div className="h-10 w-28 bg-white/[0.08] rounded-lg mt-4" />
+                </div>
+                <div className="space-y-3 py-6 border-t border-b border-white/[0.06]">
+                  {[0, 1, 2, 3].map((j) => (
+                    <div key={j} className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-white/[0.06] flex-shrink-0" />
+                      <div className="h-3.5 bg-white/[0.05] rounded-md" style={{ width: (55 + j * 12) + '%' }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="h-11 w-full bg-white/[0.08] rounded-xl" />
+              </div>
+            ))
+          ) : (
+            plans.map((code) => (
+              <PlanCard
+                key={code}
+                code={code}
+                interval={interval}
+                currentPlanCode={currentPlanCode}
+                currentInterval={subscription?.interval}
+                cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
+                currentPeriodEnd={subscription?.currentPeriodEnd}
+                onUpgrade={handleUpgrade}
+                isUpgrading={checkoutMutation.isPending}
+                upgradingTo={upgradingTo}
+              />
+            ))
+          )}
         </div>
       </div>
 
