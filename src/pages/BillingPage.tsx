@@ -38,10 +38,60 @@ const PLAN_LABELS: Record<PlanCode, string> = {
   PRO: 'Pro',
 };
 
-const PLAN_TAGLINES: Record<PlanCode, string> = {
-  FREE: 'Best for getting started',
-  PLUS: 'Best for power users',
-  PRO: 'Best for professionals',
+
+interface PlanFeatureItem {
+  strong: string;
+  text: string;
+  badge?: string;
+}
+
+interface PlanConfig {
+  tagline: string;
+  badge?: string;
+  includesPrefix?: string;
+  features: PlanFeatureItem[];
+}
+
+const PLAN_CONFIGS: Record<PlanCode, PlanConfig> = {
+  FREE: {
+    tagline: 'Best for getting started',
+    features: [
+      { strong: '100 AI credits', text: '/ month included free' },
+      { strong: 'Standard chat speed', text: '& core reasoning capabilities' },
+      { strong: 'Standard context window', text: 'for daily questions' },
+      { strong: '5 MB file uploads', text: 'for documents & image analysis' },
+      { strong: 'Full conversation history', text: 'synced and searchable' },
+      { strong: 'Community support', text: '& documentation access' },
+    ],
+  },
+  PLUS: {
+    tagline: 'Best for power users & active creators',
+    badge: 'Popular',
+    includesPrefix: 'Everything in Free, plus:',
+    features: [
+      { strong: '5,000 AI credits', text: '/ month (50x Free tier)', badge: '50x Free' },
+      { strong: 'Extended chat sessions', text: '& significantly longer turns' },
+      { strong: 'Priority response queue', text: 'with faster generation speed' },
+      { strong: '25 MB file uploads', text: 'multimodal PDFs, docs & sheets' },
+      { strong: 'Real-time web search', text: 'with verified source citations' },
+      { strong: 'Cross-thread memory', text: 'remembers your project context' },
+      { strong: 'Standard email support', text: 'with fast resolution times' },
+    ],
+  },
+  PRO: {
+    tagline: 'Best for professionals & heavy workflows',
+    badge: 'Best Value',
+    includesPrefix: 'Everything in Plus, plus:',
+    features: [
+      { strong: '20,000 AI credits', text: '/ month (4x Plus tier)', badge: 'Max Credits' },
+      { strong: 'Unlimited conversation depth', text: '& complex problem solving' },
+      { strong: 'Highest priority speed', text: 'instant inference, even at peak hours', badge: 'Zero Wait' },
+      { strong: 'Advanced reasoning models', text: 'deep thinking & code generation' },
+      { strong: '100 MB large file uploads', text: 'batch document parsing & datasets' },
+      { strong: 'Deep research agent', text: 'multi-source autonomous research' },
+      { strong: 'Priority 24/7 support', text: '& early access to new AI features' },
+    ],
+  },
 };
 
 const CANCELLATION_REASONS = [
@@ -88,6 +138,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
   const isLoading = isUpgrading && upgradingTo === code;
   const isPro = code === 'PRO';
   const isPlus = code === 'PLUS';
+  const config = PLAN_CONFIGS[code];
 
   // Upgrade / Downgrade logic:
   // Hierarchy: FREE (0) < PLUS (1) < PRO (2)
@@ -120,89 +171,122 @@ const PlanCard: React.FC<PlanCardProps> = ({
   return (
     <div
       className={[
-        'relative flex flex-col overflow-hidden rounded-2xl transition-all duration-300',
+        'relative flex flex-col justify-between overflow-hidden rounded-2xl transition-all duration-300',
         isPro
-          ? 'bg-gradient-to-b from-[#1a0f3e] via-[#130d2c] to-[#0d0c1e] border border-violet-500/50 shadow-[0_8px_60px_rgba(139,92,246,0.25)] hover:shadow-[0_8px_80px_rgba(139,92,246,0.38)] hover:border-violet-400/70'
+          ? 'bg-gradient-to-b from-[#1b113d] via-[#140e2b] to-[#0c0a18] border-2 border-violet-500/60 shadow-[0_8px_50px_rgba(139,92,246,0.28)] hover:shadow-[0_12px_65px_rgba(139,92,246,0.42)] hover:border-violet-400/80 -translate-y-1'
           : isPlus
-          ? 'bg-gradient-to-b from-[#0e1530] to-[#0b1020] border border-indigo-500/35 hover:border-indigo-400/55 hover:shadow-[0_4px_40px_rgba(99,102,241,0.18)]'
-          : 'bg-gradient-to-b from-[#111827] to-[#0c1018] border border-white/[0.1] hover:border-white/25',
-        (isExactCurrent || isSameTierAnnual) ? 'ring-2 ring-violet-500/70 ring-offset-[3px] ring-offset-[#0d1120]' : '',
+          ? 'bg-gradient-to-b from-[#0e1634] via-[#0b1024] to-[#080c18] border border-indigo-500/40 hover:border-indigo-400/65 shadow-[0_4px_35px_rgba(99,102,241,0.18)] hover:shadow-[0_8px_50px_rgba(99,102,241,0.3)]'
+          : 'bg-gradient-to-b from-[#111726] via-[#0d121e] to-[#0a0d15] border border-white/[0.09] hover:border-white/20 shadow-[0_4px_25px_rgba(0,0,0,0.3)]',
+        (isExactCurrent || isSameTierAnnual) ? 'ring-2 ring-violet-500/80 ring-offset-[3px] ring-offset-[#0b0e17]' : '',
       ].join(' ')}
     >
       {/* PRO top ribbon */}
       {isPro && (
-        <div className="flex items-center justify-center gap-2 py-2 bg-gradient-to-r from-violet-700/70 via-indigo-600/70 to-violet-700/70 border-b border-violet-400/30">
-          <span className="text-[11px] font-extrabold uppercase tracking-[0.15em] text-white/95">
-            ⚡ Most Popular
+        <div className="flex items-center justify-center gap-1.5 py-2 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 border-b border-violet-400/40 shadow-sm">
+          <span className="text-xs">⚡</span>
+          <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white">
+            Most Popular Choice
           </span>
         </div>
       )}
 
       {/* PRO ambient glow */}
       {isPro && (
-        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-64 h-40 rounded-full bg-violet-600/15 blur-3xl" />
+        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-44 rounded-full bg-violet-600/20 blur-3xl" />
       )}
 
-      <div className="flex flex-col flex-1 p-7">
+      {/* Plus ambient glow */}
+      {isPlus && (
+        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-64 h-36 rounded-full bg-indigo-600/10 blur-3xl" />
+      )}
 
-        {/* ── Plan name + tagline ── */}
-        <div className="mb-7">
+      <div className="flex flex-col flex-1 p-6 sm:p-7">
+
+        {/* ── Plan name + badge + tagline ── */}
+        <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h3
-              className={[
-                'text-2xl font-extrabold tracking-tight leading-none',
-                isPro
-                  ? 'text-transparent bg-clip-text bg-gradient-to-r from-violet-300 to-indigo-300'
-                  : isPlus
-                  ? 'text-indigo-200'
-                  : 'text-white',
-              ].join(' ')}
-            >
-              {PLAN_LABELS[code]}
-            </h3>
+            <div className="flex items-center gap-2.5">
+              <h3
+                className={[
+                  'text-2xl font-black tracking-tight leading-none',
+                  isPro
+                    ? 'text-transparent bg-clip-text bg-gradient-to-r from-violet-200 via-purple-200 to-indigo-200'
+                    : isPlus
+                    ? 'text-indigo-200'
+                    : 'text-white',
+                ].join(' ')}
+              >
+                {PLAN_LABELS[code]}
+              </h3>
+              {config.badge && !isExactCurrent && (
+                <span
+                  className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                    isPro
+                      ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                  }`}
+                >
+                  {config.badge}
+                </span>
+              )}
+            </div>
             {isExactCurrent && (
               <Badge variant="brand" size="sm" dot>
                 Current
               </Badge>
             )}
           </div>
-          <p className="text-[13px] text-slate-500 leading-snug">
-            {PLAN_TAGLINES[code]}
+          <p className="text-[13px] text-slate-400 leading-snug">
+            {config.tagline}
           </p>
         </div>
 
         {/* ── Price ── */}
-        <div className="mb-7">
-          <div className="flex items-end gap-1 leading-none">
+        <div className="mb-6">
+          <div className="flex items-baseline gap-1.5 leading-none">
             <span
               className={[
-                'text-[3.25rem] font-extrabold tracking-tight',
+                'text-[3rem] font-black tracking-tight',
                 isPro
-                  ? 'text-transparent bg-clip-text bg-gradient-to-br from-violet-300 via-purple-200 to-indigo-300'
+                  ? 'text-transparent bg-clip-text bg-gradient-to-br from-violet-200 via-white to-purple-300'
                   : 'text-white',
               ].join(' ')}
             >
               ${price}
             </span>
-            {code !== 'FREE' && (
-              <span className="text-sm text-slate-500 pb-2">
-                &nbsp;/&nbsp;{interval === 'monthly' ? 'month' : 'year'}
+            {code !== 'FREE' ? (
+              <span className="text-sm font-medium text-slate-400">
+                /{interval === 'monthly' ? 'mo' : 'yr'}
+              </span>
+            ) : (
+              <span className="text-sm font-medium text-slate-400">
+                /forever
               </span>
             )}
           </div>
 
           <p
-            className={`mt-2 text-[12px] font-medium ${
+            className={`mt-2 text-[12px] font-semibold flex items-center gap-1.5 ${
               code !== 'FREE' && interval === 'yearly'
                 ? 'text-emerald-400'
-                : 'text-slate-600'
+                : 'text-slate-500'
             }`}
           >
-            {code === 'FREE'
-              ? 'No credit card required'
-              : interval === 'yearly'
-              ? 'Billed annually · Save ~17%'
-              : 'Billed monthly'}
+            {code === 'FREE' ? (
+              <>
+                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>No credit card required</span>
+              </>
+            ) : interval === 'yearly' ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Billed annually · Save ~17%</span>
+              </>
+            ) : (
+              <span>Billed monthly · Cancel anytime</span>
+            )}
           </p>
         </div>
 
@@ -214,8 +298,8 @@ const PlanCard: React.FC<PlanCardProps> = ({
               className={[
                 'w-full rounded-xl py-3 text-sm font-semibold border select-none cursor-not-allowed text-center transition-colors',
                 (isExactCurrent || isSameTierAnnual)
-                  ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 font-bold'
-                  : 'border-white/[0.07] bg-white/[0.02] text-slate-500',
+                  ? 'border-violet-500/40 bg-violet-500/15 text-violet-300 font-bold'
+                  : 'border-white/[0.08] bg-white/[0.03] text-slate-500',
               ].join(' ')}
             >
               {buttonText}
@@ -225,10 +309,10 @@ const PlanCard: React.FC<PlanCardProps> = ({
               disabled={isUpgrading}
               onClick={() => onUpgrade(code)}
               className={[
-                'w-full rounded-xl py-3 text-sm font-bold transition-all duration-200 cursor-pointer select-none flex items-center justify-center gap-2 active:scale-[0.98]',
+                'w-full rounded-xl py-3 text-sm font-extrabold transition-all duration-200 cursor-pointer select-none flex items-center justify-center gap-2 active:scale-[0.98]',
                 isPro
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-[0_4px_28px_rgba(139,92,246,0.5)] hover:shadow-[0_4px_36px_rgba(139,92,246,0.65)]'
-                  : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.35)] hover:shadow-[0_4px_28px_rgba(99,102,241,0.5)]',
+                  ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-[0_4px_28px_rgba(139,92,246,0.55)] hover:shadow-[0_6px_36px_rgba(139,92,246,0.7)]'
+                  : 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.35)] hover:shadow-[0_6px_28px_rgba(99,102,241,0.5)]',
                 isUpgrading ? 'opacity-50 cursor-not-allowed' : '',
               ].join(' ')}
             >
@@ -251,17 +335,89 @@ const PlanCard: React.FC<PlanCardProps> = ({
 
         {/* ── Divider ── */}
         <div
-          className={`h-px ${
+          className={`h-px w-full ${
             isPro
-              ? 'bg-gradient-to-r from-transparent via-violet-500/25 to-transparent'
-              : 'bg-white/[0.05]'
+              ? 'bg-gradient-to-r from-transparent via-violet-500/35 to-transparent'
+              : isPlus
+              ? 'bg-gradient-to-r from-transparent via-indigo-500/25 to-transparent'
+              : 'bg-white/[0.07]'
           }`}
         />
+
+        {/* ── Features List ── */}
+        <div className="flex-1 flex flex-col pt-5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-1.5">
+            {config.includesPrefix ? (
+              <>
+                <span className={isPro ? 'text-violet-400 font-extrabold' : 'text-indigo-400 font-extrabold'}>✦</span>
+                <span className="text-slate-300 font-semibold">{config.includesPrefix}</span>
+              </>
+            ) : (
+              <span>What's included:</span>
+            )}
+          </p>
+
+          <ul className="space-y-3 flex-1 text-[13px]">
+            {config.features.map((feature, idx) => (
+              <li key={idx} className="flex items-start gap-2.5">
+                <div
+                  className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    isPro
+                      ? 'bg-violet-500/25 text-violet-300 border border-violet-400/40 shadow-[0_0_8px_rgba(139,92,246,0.3)]'
+                      : isPlus
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                      : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                  }`}
+                >
+                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="flex-1 text-slate-300 leading-snug">
+                  <strong className={`font-semibold ${isPro ? 'text-white' : isPlus ? 'text-slate-100' : 'text-slate-200'}`}>
+                    {feature.strong}
+                  </strong>{' '}
+                  <span className="text-slate-400">{feature.text}</span>
+                  {feature.badge && (
+                    <span
+                      className={`ml-1.5 inline-block text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded leading-none ${
+                        isPro
+                          ? 'bg-violet-500/25 text-violet-300 border border-violet-500/30'
+                          : 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
+                      }`}
+                    >
+                      {feature.badge}
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
 
       </div>
     </div>
   );
 };
+
+const BILLING_FAQS = [
+  {
+    q: 'How do AI credits work?',
+    a: 'AI credits power every interaction, document analysis, and query in NexaMind. Simple chats use only a fraction of a credit, while complex reasoning models and large document parsing consume slightly more. Your credit balance renews automatically with each billing cycle.',
+  },
+  {
+    q: 'What happens when I upgrade from Plus to Pro?',
+    a: 'Upgrades happen instantly with smart proration! You are only charged the prorated difference for your remaining days, and your full 20,000 Pro credits are immediately unlocked with zero disruption to active chats.',
+  },
+  {
+    q: 'Can I cancel auto-renewal at any time?',
+    a: 'Yes, absolutely. You can cancel auto-renewal in 1 click at any time. When cancelled, you retain full access to all your plan features and credits until the end of your billing cycle, and you will never be charged again.',
+  },
+  {
+    q: 'Can I switch between monthly and annual billing?',
+    a: 'Yes! Toggle the switch at the top to choose between monthly and annual billing. Annual billing saves ~17% compared to monthly.',
+  },
+];
 
 /* ------------------------------------------------------------------ */
 /* BillingPage                                                          */
@@ -270,6 +426,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
 export const BillingPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [interval, setInterval] = useState<BillingInterval>('monthly');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const [upgradingTo, setUpgradingTo] = useState<PlanCode | null>(null);
 
@@ -509,14 +666,18 @@ export const BillingPage: React.FC = () => {
 
       {/* ── Page header ── */}
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs font-semibold text-violet-300 mb-3 shadow-[0_0_15px_rgba(139,92,246,0.15)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+          Transparent Pricing &amp; Flexible Plans
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
           Billing{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-indigo-400">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400">
             &amp; Plans
           </span>
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Manage your subscription, credits, and billing preferences.
+        <p className="mt-2 text-sm text-slate-400 max-w-xl">
+          Scale your chat capacity, monthly credits, and file analysis capabilities. Upgrade or adjust your plan anytime.
         </p>
       </div>
 
@@ -748,15 +909,17 @@ export const BillingPage: React.FC = () => {
       </div>
 
       {/* ── Plan picker ── */}
-      <div>
+      <div className="space-y-7">
         {/* Section header + toggle */}
-        <div className="flex items-end justify-between mb-7">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-2">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Choose a Plan</h2>
-            <p className="text-sm text-slate-500 mt-1">Upgrade anytime · cancel auto-renewal with 1-click.</p>
+            <h2 className="text-2xl font-black text-white tracking-tight">Choose a Plan</h2>
+            <p className="text-sm text-slate-400 mt-1">
+              Scale your chat capacity, credit pool, and file analysis capabilities.
+            </p>
           </div>
 
-          <div className="flex items-center gap-0.5 bg-[#0a0e1c] border border-white/[0.09] rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-[#0b0e1b] border border-white/[0.1] rounded-xl p-1.5 shadow-inner self-start sm:self-auto">
             {(['monthly', 'yearly'] as BillingInterval[]).map((iv) => (
               <button
                 key={iv}
@@ -766,16 +929,16 @@ export const BillingPage: React.FC = () => {
                   setInterval(iv);
                 }}
                 className={[
-                  'px-5 py-2 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer select-none flex items-center gap-1.5 capitalize',
+                  'px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer select-none flex items-center gap-2 capitalize',
                   interval === iv
-                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_2px_14px_rgba(139,92,246,0.55)]'
-                    : 'text-slate-500 hover:text-slate-300',
+                    ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-600 text-white shadow-[0_2px_14px_rgba(139,92,246,0.5)]'
+                    : 'text-slate-400 hover:text-slate-200',
                 ].join(' ')}
               >
-                {iv}
+                <span>{iv}</span>
                 {iv === 'yearly' && (
-                  <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full leading-none">
-                    −17%
+                  <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-full leading-none shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+                    Save ~17%
                   </span>
                 )}
               </button>
@@ -784,12 +947,12 @@ export const BillingPage: React.FC = () => {
         </div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-stretch">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-stretch">
           {isSubLoading ? (
             [0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="relative flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-b from-[#111827] to-[#0c1018] border border-white/[0.08] p-7 animate-pulse space-y-6 min-h-[500px]"
+                className="relative flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-b from-[#111827] to-[#0c1018] border border-white/[0.08] p-7 animate-pulse space-y-6 min-h-[560px]"
               >
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -800,10 +963,10 @@ export const BillingPage: React.FC = () => {
                   <div className="h-10 w-28 bg-white/[0.08] rounded-lg mt-4" />
                 </div>
                 <div className="space-y-3 py-6 border-t border-b border-white/[0.06]">
-                  {[0, 1, 2, 3].map((j) => (
+                  {[0, 1, 2, 3, 4].map((j) => (
                     <div key={j} className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-white/[0.06] flex-shrink-0" />
-                      <div className="h-3.5 bg-white/[0.05] rounded-md" style={{ width: (55 + j * 12) + '%' }} />
+                      <div className="h-3.5 bg-white/[0.05] rounded-md" style={{ width: (55 + j * 10) + '%' }} />
                     </div>
                   ))}
                 </div>
@@ -839,12 +1002,101 @@ export const BillingPage: React.FC = () => {
         </p>
       )}
 
+      {/* ── Trust & Value Props ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+        <div className="p-4 rounded-2xl bg-gradient-to-b from-white/[0.04] to-white/[0.01] border border-white/[0.07] flex items-start gap-3 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400 flex-shrink-0 shadow-[0_0_12px_rgba(139,92,246,0.15)]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-white mb-0.5">Instant Credit Grant</h4>
+            <p className="text-[12px] text-slate-400 leading-relaxed">
+              Credits and model privileges are added to your balance immediately after payment.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-gradient-to-b from-white/[0.04] to-white/[0.01] border border-white/[0.07] flex items-start gap-3 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.15)]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-white mb-0.5">1-Click Cancellation</h4>
+            <p className="text-[12px] text-slate-400 leading-relaxed">
+              Turn off auto-renewal anytime in 1 click. You retain all benefits until your billing cycle ends.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-gradient-to-b from-white/[0.04] to-white/[0.01] border border-white/[0.07] flex items-start gap-3 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 flex-shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.15)]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-white mb-0.5">Secure Payments</h4>
+            <p className="text-[12px] text-slate-400 leading-relaxed">
+              Global payment methods and invoices managed with 256-bit encryption powered by Polar.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Frequently Asked Questions ── */}
+      <div className="pt-6 border-t border-white/[0.08] space-y-5">
+        <div className="text-center max-w-lg mx-auto">
+          <h3 className="text-xl font-bold text-white tracking-tight">Frequently Asked Questions</h3>
+          <p className="text-xs text-slate-400 mt-1">Everything you need to know about NexaMind subscriptions &amp; credits.</p>
+        </div>
+
+        <div className="max-w-2xl mx-auto space-y-2.5">
+          {BILLING_FAQS.map((faq, i) => {
+            const isOpen = openFaq === i;
+            return (
+              <div
+                key={i}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.035] overflow-hidden transition-all duration-200"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(isOpen ? null : i)}
+                  className="w-full p-4 text-left flex items-center justify-between gap-4 cursor-pointer select-none"
+                >
+                  <span className="text-sm font-semibold text-slate-200">{faq.q}</span>
+                  <svg
+                    className={`w-4 h-4 text-slate-400 transition-transform duration-200 flex-shrink-0 ${
+                      isOpen ? 'rotate-180 text-violet-400' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-1 text-xs text-slate-400 leading-relaxed border-t border-white/[0.04]">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Footnote */}
-      <div className="flex items-center justify-center gap-2 pb-4">
-        <svg className="w-3.5 h-3.5 text-slate-700 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="flex items-center justify-center gap-2 pt-2 pb-4">
+        <svg className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
-        <p className="text-[11px] text-slate-600">
+        <p className="text-[11px] text-slate-500">
           Subscription management, cancellation &amp; invoices handled securely via Polar &amp; NexaMind.
         </p>
       </div>
