@@ -10,6 +10,12 @@ export interface MessageUsage {
   totalTokens: number;
 }
 
+export interface DocumentSourceCitation {
+  attachmentId: string;
+  filename: string;
+  chunkIndex: number;
+}
+
 export interface Message {
   _id: string;
   conversationId: string;
@@ -24,6 +30,7 @@ export interface Message {
   originalMessageId?: string | null;
   attachmentId?: string | null;
   attachment?: SafeAttachment | null;
+  sources?: DocumentSourceCitation[] | null;
   createdAt: string;
   updatedAt: string;
 }
