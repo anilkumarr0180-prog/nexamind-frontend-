@@ -11,9 +11,61 @@ export interface MessageUsage {
 }
 
 export interface DocumentSourceCitation {
+  type?: "document";
   attachmentId: string;
   filename: string;
   chunkIndex: number;
+}
+
+export interface WebSourceCitation {
+  type: "web";
+  title: string;
+  url: string;
+}
+
+export type ChatSourceCitation = DocumentSourceCitation | WebSourceCitation;
+
+export function isWebSourceCitation(source: ChatSourceCitation | null | undefined): source is WebSourceCitation {
+  if (!source) return false;
+  return source.type === "web" || ("url" in source && typeof (source as any).url === "string");
+}
+
+export function isDocumentSourceCitation(source: ChatSourceCitation | null | undefined): source is DocumentSourceCitation {
+  if (!source) return false;
+  return !isWebSourceCitation(source);
+}
+
+/**
+ * Validates and safely formats external web URLs.
+ * Ensures the protocol is http or https and disallows unsafe schemes (javascript:, data:, etc.).
+ * Returns null if the URL is missing, invalid, or dangerous.
+ */
+export function getSafeWebUrl(url?: string | null): string | null {
+  if (!url || typeof url !== "string") return null;
+  let trimmed = url.trim();
+  if (!trimmed) return null;
+
+  // Disallow dangerous schemes immediately
+  if (/^(javascript|data|vbscript):/i.test(trimmed)) {
+    return null;
+  }
+
+  // Prepend protocol if protocol-relative or bare domain
+  if (trimmed.startsWith("//")) {
+    trimmed = "https:" + trimmed;
+  } else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+    trimmed = "https://" + trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.href;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export interface Message {
@@ -30,7 +82,7 @@ export interface Message {
   originalMessageId?: string | null;
   attachmentId?: string | null;
   attachment?: SafeAttachment | null;
-  sources?: DocumentSourceCitation[] | null;
+  sources?: ChatSourceCitation[] | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -193,8 +193,84 @@ const runFrontendSSETests = async () => {
     assert.equal(preAbortThrew, false, "Must NOT throw on pre-aborted signal");
     console.log("✓ Test 4 Passed: Pre-aborted signal handled silently");
 
+    // -------------------------------------------------------------
+    // Test 5: SSE stream with 'sources' event containing web sources
+    // -------------------------------------------------------------
+    console.log("\n[Test 5] SSE stream with 'sources' event & web source validation");
+    const mockWebSources = [
+      {
+        type: "web",
+        title: "TypeScript Documentation",
+        url: "https://www.typescriptlang.org",
+      },
+      {
+        type: "web",
+        title: "Node.js Official",
+        url: "nodejs.org/en",
+      },
+      {
+        type: "web",
+        title: "XSS Attempt",
+        url: "javascript:alert('pwned')",
+      },
+      {
+        type: "document",
+        attachmentId: "att-123",
+        filename: "notes.pdf",
+        chunkIndex: 2,
+      },
+    ];
+
+    globalThis.fetch = async () => {
+      return createMockStreamResponse([
+        'data: {"type":"start","userMessage":{"id":"u1"},"conversationId":"c1"}\n\n',
+        `data: ${JSON.stringify({ type: "sources", sources: mockWebSources })}\n\n`,
+        'data: {"type":"chunk","content":"Here are the search results."}\n\n',
+        'data: {"type":"done","message":{"id":"a1","content":"Here are the search results."}}\n\n',
+      ]);
+    };
+
+    let receivedSources: any[] | null = null;
+    await streamAIChatMessage(
+      { conversationId: "c1", content: "Search web" },
+      {
+        onChunk: () => {},
+        onDone: () => {},
+        onSources: (srcs) => {
+          receivedSources = srcs;
+        },
+      },
+    );
+
+    assert.ok(receivedSources, "onSources callback should have been called");
+    assert.equal(receivedSources!.length, 4, "Should have received 4 sources");
+
+    // Verify type safety & URL sanitization
+    const { isWebSourceCitation, isDocumentSourceCitation, getSafeWebUrl } = await import("../src/types/message.js");
+
+    assert.equal(isWebSourceCitation(receivedSources![0]), true);
+    assert.equal(getSafeWebUrl(receivedSources![0].url), "https://www.typescriptlang.org/");
+
+    assert.equal(isWebSourceCitation(receivedSources![1]), true);
+    assert.equal(getSafeWebUrl(receivedSources![1].url), "https://nodejs.org/en");
+
+    assert.equal(isWebSourceCitation(receivedSources![2]), true);
+    assert.equal(getSafeWebUrl(receivedSources![2].url), null, "Dangerous javascript: URL must be blocked");
+
+    assert.equal(isWebSourceCitation(receivedSources![3]), false);
+    assert.equal(isDocumentSourceCitation(receivedSources![3]), true);
+
+    // Additional URL safety tests
+    assert.equal(getSafeWebUrl(""), null);
+    assert.equal(getSafeWebUrl(null), null);
+    assert.equal(getSafeWebUrl(undefined), null);
+    assert.equal(getSafeWebUrl("data:text/html,bad"), null);
+    assert.equal(getSafeWebUrl("http://localhost:3000"), "http://localhost:3000/");
+
+    console.log("✓ Test 5 Passed: Web sources parsed, passed via SSE, and safely sanitized");
+
     console.log("\n=============================================================");
-    console.log("=== ALL FRONTEND SSE TESTS PASSED (4/4) =====================");
+    console.log("=== ALL FRONTEND SSE & WEB SOURCE TESTS PASSED (5/5) ========");
     console.log("=============================================================\n");
   } finally {
     globalThis.fetch = originalFetch;
