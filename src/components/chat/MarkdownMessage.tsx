@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getSafeWebUrl, isWebSourceCitation, type ChatSourceCitation } from '../../types/message';
 
 interface CodeBlockProps {
   language?: string;
@@ -60,13 +61,109 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, code }) => {
 
 export interface MarkdownMessageProps {
   content: string;
+  sources?: ChatSourceCitation[] | null;
 }
 
-export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => {
+/**
+ * Remark plugin to transform [1], [2], etc. in text nodes into validated citation links.
+ * Ignores code blocks, inline code, and existing links.
+ * Only transforms markers whose 1-based index exists in the provided web sources and has a safe URL.
+ */
+function createCitationPlugin(sources?: ChatSourceCitation[] | null) {
+  return () => (tree: any) => {
+    if (!sources || !Array.isArray(sources) || sources.length === 0) {
+      return;
+    }
+    const webSources = sources.filter(isWebSourceCitation);
+    if (webSources.length === 0) {
+      return;
+    }
+
+    function walk(node: any, parentType?: string) {
+      if (!node) return;
+      // Never transform citations inside code blocks, inline code, or existing links
+      if (
+        node.type === 'code' ||
+        node.type === 'inlineCode' ||
+        node.type === 'link' ||
+        parentType === 'link'
+      ) {
+        return;
+      }
+
+      if (Array.isArray(node.children)) {
+        const newChildren: any[] = [];
+        for (const child of node.children) {
+          if (
+            child &&
+            child.type === 'text' &&
+            typeof child.value === 'string' &&
+            /\[\d+\]/.test(child.value)
+          ) {
+            const regex = /\[(\d+)\]/g;
+            let lastIndex = 0;
+            let match: RegExpExecArray | null;
+            while ((match = regex.exec(child.value)) !== null) {
+              if (match.index > lastIndex) {
+                newChildren.push({
+                  type: 'text',
+                  value: child.value.slice(lastIndex, match.index),
+                });
+              }
+
+              const num = parseInt(match[1], 10);
+              const source = num >= 1 && num <= webSources.length ? webSources[num - 1] : null;
+              const safeUrl = source ? getSafeWebUrl(source.url) : null;
+
+              if (safeUrl && source) {
+                newChildren.push({
+                  type: 'link',
+                  url: safeUrl,
+                  title: source.title?.trim() || safeUrl,
+                  data: {
+                    hProperties: {
+                      className: 'citation-badge',
+                      'data-citation-index': String(num),
+                    },
+                  },
+                  children: [{ type: 'text', value: `[${num}]` }],
+                });
+              } else {
+                newChildren.push({
+                  type: 'text',
+                  value: match[0],
+                });
+              }
+              lastIndex = regex.lastIndex;
+            }
+
+            if (lastIndex < child.value.length) {
+              newChildren.push({
+                type: 'text',
+                value: child.value.slice(lastIndex),
+              });
+            }
+          } else {
+            walk(child, node.type);
+            newChildren.push(child);
+          }
+        }
+        node.children = newChildren;
+      }
+    }
+
+    walk(tree, undefined);
+  };
+}
+
+export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, sources }) => {
+  const citationPlugin = useMemo(() => createCitationPlugin(sources), [sources]);
+  const remarkPlugins = useMemo(() => [remarkGfm, citationPlugin], [citationPlugin]);
+
   return (
     <div className="prose prose-invert max-w-none text-[15px] sm:text-[15px] leading-[1.75] text-[#d8d8ec] font-normal">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={remarkPlugins}
         components={{
           // Code & Syntax
           code({ className, children, ...props }) {
@@ -152,13 +249,34 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content }) => 
           },
 
           // Links
-          a({ href, children }) {
+          a({ href, children, className, ...props }) {
+            const isSafe = href && !/^(javascript|data|vbscript):/i.test(href.trim());
+            const isCitation = Boolean((props as any)?.['data-citation-index']) || className?.includes('citation-badge');
+
+            if (isCitation) {
+              const citationIndex = (props as any)?.['data-citation-index'];
+              return (
+                <a
+                  href={isSafe ? href : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="citation-badge inline-flex items-center justify-center font-mono text-[11px] font-semibold text-violet-300 bg-violet-950/50 hover:bg-violet-900/70 border border-violet-500/30 hover:border-violet-400/60 rounded px-1.5 py-0.5 mx-0.5 transition-all duration-150 cursor-pointer select-none no-underline hover:text-violet-100 hover:shadow-sm hover:shadow-violet-950/40 align-baseline"
+                  title={props.title || 'Web source citation'}
+                  aria-label={props.title ? `Citation: ${props.title}` : 'Web citation'}
+                  data-citation-index={citationIndex}
+                >
+                  {children}
+                </a>
+              );
+            }
+
             return (
               <a
-                href={href}
+                href={isSafe ? href : '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-violet-400 underline underline-offset-2 hover:text-violet-300 transition-colors cursor-pointer font-medium"
+                title={props.title}
               >
                 {children}
               </a>

@@ -8,7 +8,7 @@ import type {
   ChatRequestDTO,
   OrchestratedChatResult,
   ToolStatusEvent,
-  DocumentSourceCitation,
+  ChatSourceCitation,
 } from '@/types';
 
 export const chatKeys = {
@@ -57,7 +57,7 @@ export interface StreamChatCallbacks {
   onError?: (error: Error) => void;
   onStatus?: (status: string, message: string) => void;
   onToolStatus?: (event: ToolStatusEvent) => void;
-  onSources?: (sources: DocumentSourceCitation[]) => void;
+  onSources?: (sources: ChatSourceCitation[]) => void;
 }
 
 export const streamAIChatMessage = async (
@@ -138,7 +138,9 @@ export const streamAIChatMessage = async (
     } else if (payload.type === 'tool_status') {
       callbacks.onToolStatus?.(payload);
     } else if (payload.type === 'sources') {
-      callbacks.onSources?.(payload.sources);
+      if (Array.isArray(payload.sources)) {
+        callbacks.onSources?.(payload.sources);
+      }
     } else if (payload.type === 'chunk') {
       if (payload.content) {
         callbacks.onChunk(payload.content);

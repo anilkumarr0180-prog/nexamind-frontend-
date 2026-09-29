@@ -74,8 +74,13 @@ export const SettingsPage: React.FC = () => {
   /* Portal Mutation (Manage Billing) */
   const portalMutation = useMutation({
     mutationFn: getPortal,
+    onMutate: () => setNotification(null),
     onSuccess: (data) => {
-      window.location.href = data.portalUrl;
+      setNotification(null);
+      const win = window.open(data.portalUrl, "_blank", "noopener,noreferrer");
+      if (!win) {
+        window.location.href = data.portalUrl;
+      }
     },
     onError: () => {
       setNotification({
@@ -88,6 +93,7 @@ export const SettingsPage: React.FC = () => {
   /* Cancel Auto-renew Mutation */
   const cancelMutation = useMutation({
     mutationFn: postCancelSubscription,
+    onMutate: () => setNotification(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all });
       setShowCancelModal(false);
@@ -109,6 +115,7 @@ export const SettingsPage: React.FC = () => {
   /* Resume Auto-renew Mutation */
   const resumeMutation = useMutation({
     mutationFn: postResumeSubscription,
+    onMutate: () => setNotification(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all });
       setNotification({
@@ -273,7 +280,7 @@ export const SettingsPage: React.FC = () => {
                             disabled={portalMutation.isPending}
                             className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
                           >
-                            {portalMutation.isPending && (
+                            {portalMutation.isPending ? (
                               <svg
                                 className="w-3.5 h-3.5 animate-spin"
                                 viewBox="0 0 24 24"
@@ -293,8 +300,22 @@ export const SettingsPage: React.FC = () => {
                                   d="M4 12a8 8 0 018-8v8H4z"
                                 />
                               </svg>
+                            ) : (
+                              <svg
+                                className="w-3.5 h-3.5 text-white/70"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                />
+                              </svg>
                             )}
-                            <span>Manage</span>
+                            <span>{portalMutation.isPending ? "Opening..." : "Manage"}</span>
                           </button>
                         ) : (
                           <Link

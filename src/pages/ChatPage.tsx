@@ -26,7 +26,15 @@ import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { NexaMindIcon } from "@/components/ui";
-import type { Message, Conversation, ToolStatusEvent, PaginatedResponse, DocumentSourceCitation } from "@/types";
+import {
+  type Message,
+  type Conversation,
+  type ToolStatusEvent,
+  type PaginatedResponse,
+  type ChatSourceCitation,
+  isWebSourceCitation,
+  getSafeWebUrl,
+} from "@/types";
 
 function isDocumentAttachment(att?: { type?: string | null; originalName?: string | null; format?: string | null } | null): boolean {
   if (!att) return false;
@@ -60,7 +68,113 @@ export interface ConversationStreamState {
   streamingContent: string;
   agentStatusText?: string;
   toolStatuses: ToolStatusItem[];
-  sources?: DocumentSourceCitation[] | null;
+  sources?: ChatSourceCitation[] | null;
+}
+
+interface MessageSourcesProps {
+  sources?: ChatSourceCitation[] | null;
+  onSourceClick: (src: ChatSourceCitation) => void;
+}
+
+const MessageSources: React.FC<MessageSourcesProps> = ({ sources, onSourceClick }) => {
+  if (!sources || sources.length === 0) return null;
+
+  const webSources = sources.filter(isWebSourceCitation);
+
+  return (
+    <div className="mt-3 pt-2.5 border-t border-white/[0.08] text-xs">
+      <div className="flex items-center gap-1.5 font-medium text-violet-300/90 mb-1.5">
+        <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <span>Sources</span>
+      </div>
+      <ul className="space-y-1 list-none pl-0 m-0">
+        {sources.map((src, idx) => {
+          const isWeb = isWebSourceCitation(src);
+          const safeUrl = isWeb ? getSafeWebUrl(src.url) : null;
+          const webIndex = isWeb ? webSources.indexOf(src) + 1 : null;
+          const titleText = isWeb
+            ? (src.title?.trim() || safeUrl || "Web source")
+            : src.filename;
+          const tooltip = isWeb
+            ? (safeUrl ? (src.title?.trim() ? `${src.title.trim()}\n${safeUrl}` : safeUrl) : "Web source (invalid or missing link)")
+            : `View source: ${src.filename} (chunk ${src.chunkIndex})`;
+
+          return (
+            <li
+              key={isWeb ? `web-${safeUrl || src.title || idx}-${idx}` : `${src.attachmentId}-${src.chunkIndex}-${idx}`}
+              className="flex items-center gap-1.5 text-white/70"
+            >
+              {isWeb ? (
+                <span className="font-mono text-[11px] font-semibold text-violet-400 min-w-[18px]">
+                  [{webIndex}]
+                </span>
+              ) : (
+                <span className="text-violet-400/80">•</span>
+              )}
+              {isWeb ? (
+                safeUrl ? (
+                  <a
+                    href={safeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-left text-violet-300 hover:text-violet-200 underline-offset-2 hover:underline transition-colors text-xs font-medium cursor-pointer"
+                    title={tooltip}
+                  >
+                    <span className="truncate max-w-[280px] sm:max-w-md">{titleText}</span>
+                    <svg className="w-3 h-3 opacity-70 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 text-left text-white/60 text-xs font-medium"
+                    title={tooltip}
+                  >
+                    <span className="truncate max-w-[280px] sm:max-w-md">{titleText}</span>
+                  </span>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSourceClick(src)}
+                  className="text-left hover:text-violet-300 underline-offset-2 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
+                  title={tooltip}
+                >
+                  <span className="font-medium text-white/90">{src.filename}</span>
+                  <span className="text-white/40 ml-1.5">— chunk {src.chunkIndex}</span>
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
+
+const AGENT_MODE_STORAGE_KEY = "nexamind_agent_mode_prefs";
+
+function getStoredAgentMode(convId?: string): boolean {
+  if (!convId || typeof window === "undefined" || !window.localStorage) return false;
+  try {
+    const raw = window.localStorage.getItem(AGENT_MODE_STORAGE_KEY);
+    const prefs: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+    return Boolean(prefs[convId]);
+  } catch {
+    return false;
+  }
+}
+
+function setStoredAgentMode(convId: string, enabled: boolean): void {
+  if (!convId || typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const raw = window.localStorage.getItem(AGENT_MODE_STORAGE_KEY);
+    const prefs: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+    prefs[convId] = enabled;
+    window.localStorage.setItem(AGENT_MODE_STORAGE_KEY, JSON.stringify(prefs));
+  } catch {}
 }
 
 export const ChatPage: React.FC = () => {
@@ -70,12 +184,19 @@ export const ChatPage: React.FC = () => {
 
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [agentMode, setAgentMode] = useState<boolean>(false);
+  const [agentMode, setAgentMode] = useState<boolean>(() => getStoredAgentMode(conversationId));
   const [streamingMap, setStreamingMap] = useState<Record<string, ConversationStreamState>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<PendingMessage[]>([]);
 
-  const handleSourceClick = (src: DocumentSourceCitation) => {
+  const handleSourceClick = (src: ChatSourceCitation) => {
+    if (isWebSourceCitation(src)) {
+      const safeUrl = getSafeWebUrl(src.url);
+      if (safeUrl) {
+        window.open(safeUrl, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
     const matchingMsg = activeMessages.find(
       (m) =>
         m.attachmentId === src.attachmentId ||
@@ -337,6 +458,8 @@ export const ChatPage: React.FC = () => {
     inputRef.current?.focus();
     setErrorMessage(null);
     setIsSubmitting(false);
+    // Restore persistent conversation-level Agent mode (defaults to false for new chats)
+    setAgentMode(getStoredAgentMode(conversationId));
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
     }
@@ -535,6 +658,9 @@ export const ChatPage: React.FC = () => {
 
     // If new conversation, navigate immediately now that optimistic message and streaming state are loaded
     if (isNewConversation) {
+      if (agentMode) {
+        setStoredAgentMode(targetConvId, true);
+      }
       isNavigatingFromSendRef.current = true;
       navigate(`/app/chat/${targetConvId}`, { replace: true });
     }
@@ -794,6 +920,7 @@ export const ChatPage: React.FC = () => {
       // -------------------------------------------------------------
       // Standard Chat Streaming Pipeline (Batch 2)
       // -------------------------------------------------------------
+      let streamedSources: ChatSourceCitation[] | null = null;
       try {
         await streamAIChatMessage(
           {
@@ -804,7 +931,8 @@ export const ChatPage: React.FC = () => {
           },
           {
             onStart: () => {},
-            onSources: (sources: DocumentSourceCitation[]) => {
+            onSources: (sources: ChatSourceCitation[]) => {
+              streamedSources = sources;
               setStreamingMap((prev) => {
                 const cur = prev[targetConvId];
                 if (!cur) return prev;
@@ -910,7 +1038,7 @@ export const ChatPage: React.FC = () => {
                   model: result.assistantMessage.model ?? null,
                   provider: result.assistantMessage.provider ?? null,
                   usage: result.assistantMessage.usage ?? null,
-                  sources: (result.assistantMessage as any).sources ?? result.sources ?? null,
+                  sources: (result.assistantMessage as any).sources ?? result.sources ?? streamedSources ?? null,
                   createdAt: result.assistantMessage.createdAt,
                   updatedAt: result.assistantMessage.createdAt,
                 };
@@ -1075,6 +1203,9 @@ export const ChatPage: React.FC = () => {
                   onClick={() => {
                     if (promptText.includes("calculator")) {
                       setAgentMode(true);
+                      if (conversationId) {
+                        setStoredAgentMode(conversationId, true);
+                      }
                     }
                     handleSendMessage(promptText);
                   }}
@@ -1247,33 +1378,8 @@ export const ChatPage: React.FC = () => {
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-1 pt-0.5">
-                    <MarkdownMessage content={msg.content} />
-                    {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-3 pt-2.5 border-t border-white/[0.08] text-xs">
-                        <div className="flex items-center gap-1.5 font-medium text-violet-300/90 mb-1.5">
-                          <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
-                          <span>Sources</span>
-                        </div>
-                        <ul className="space-y-1 list-none pl-0 m-0">
-                          {msg.sources.map((src, idx) => (
-                            <li key={`${src.attachmentId}-${src.chunkIndex}-${idx}`} className="flex items-center gap-1.5 text-white/70">
-                              <span className="text-violet-400/80">•</span>
-                              <button
-                                type="button"
-                                onClick={() => handleSourceClick(src)}
-                                className="text-left hover:text-violet-300 underline-offset-2 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
-                                title={`View source: ${src.filename} (chunk ${src.chunkIndex})`}
-                              >
-                                <span className="font-medium text-white/90">{src.filename}</span>
-                                <span className="text-white/40 ml-1.5">— chunk {src.chunkIndex}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    <MarkdownMessage content={msg.content} sources={msg.sources} />
+                    <MessageSources sources={msg.sources} onSourceClick={handleSourceClick} />
                   </div>
                 </div>
               );
@@ -1342,30 +1448,43 @@ export const ChatPage: React.FC = () => {
                         )}
 
                         {/* Tool Status Events */}
-                        {currentStream.toolStatuses.map((toolItem) => (
-                          <div key={toolItem.id} className="flex items-center gap-2">
-                            {toolItem.status === "running" ? (
-                              <>
-                                <span className="text-amber-400">🔧</span>
-                                <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
-                                <span className="text-[#8e8e8e]">— running</span>
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping ml-0.5" />
-                              </>
-                            ) : toolItem.status === "completed" ? (
-                              <>
-                                <span className="text-emerald-400 font-bold">✓</span>
-                                <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
-                                <span className="text-[#8e8e8e]">— completed</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-rose-400 font-bold">✕</span>
-                                <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
-                                <span className="text-rose-400/80">— failed</span>
-                              </>
-                            )}
-                          </div>
-                        ))}
+                        {currentStream.toolStatuses.map((toolItem) => {
+                          const isFailedWebSearch =
+                            toolItem.status === "failed" &&
+                            toolItem.tool === "web_search";
+                          return (
+                            <div
+                              key={toolItem.id}
+                              className="flex items-center gap-2"
+                              title={
+                                isFailedWebSearch
+                                  ? "Real-time web search was unavailable; answering from available knowledge."
+                                  : undefined
+                              }
+                            >
+                              {toolItem.status === "running" ? (
+                                <>
+                                  <span className="text-amber-400">🔧</span>
+                                  <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
+                                  <span className="text-[#8e8e8e]">— running</span>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping ml-0.5" />
+                                </>
+                              ) : toolItem.status === "completed" ? (
+                                <>
+                                  <span className="text-emerald-400 font-bold">✓</span>
+                                  <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
+                                  <span className="text-[#8e8e8e]">— completed</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-rose-400 font-bold">✕</span>
+                                  <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
+                                  <span className="text-rose-400/80">— failed</span>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {/* Status line: Generating response... */}
                         {currentStream.agentStatusText === "Generating response..." && (
@@ -1380,33 +1499,8 @@ export const ChatPage: React.FC = () => {
                   {/* Progressive Streamed Text Content */}
                   {currentStream.streamingContent ? (
                     <div className="relative">
-                      <MarkdownMessage content={currentStream.streamingContent} />
-                      {currentStream.sources && currentStream.sources.length > 0 && (
-                        <div className="mt-3 pt-2.5 border-t border-white/[0.08] text-xs">
-                          <div className="flex items-center gap-1.5 font-medium text-violet-300/90 mb-1.5">
-                            <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                            </svg>
-                            <span>Sources</span>
-                          </div>
-                          <ul className="space-y-1 list-none pl-0 m-0">
-                            {currentStream.sources.map((src, idx) => (
-                              <li key={`${src.attachmentId}-${src.chunkIndex}-${idx}`} className="flex items-center gap-1.5 text-white/70">
-                                <span className="text-violet-400/80">•</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSourceClick(src)}
-                                  className="text-left hover:text-violet-300 underline-offset-2 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
-                                  title={`View source: ${src.filename} (chunk ${src.chunkIndex})`}
-                                >
-                                  <span className="font-medium text-white/90">{src.filename}</span>
-                                  <span className="text-white/40 ml-1.5">— chunk {src.chunkIndex}</span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      <MarkdownMessage content={currentStream.streamingContent} sources={currentStream.sources} />
+                      <MessageSources sources={currentStream.sources} onSourceClick={handleSourceClick} />
                     </div>
                   ) : (
                     currentStream.type === "chat" && (
@@ -1661,7 +1755,15 @@ export const ChatPage: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setAgentMode((prev) => !prev)}
+                  onClick={() => {
+                    setAgentMode((prev) => {
+                      const next = !prev;
+                      if (conversationId) {
+                        setStoredAgentMode(conversationId, next);
+                      }
+                      return next;
+                    });
+                  }}
                   disabled={isCurrentConvStreaming || isArchived}
                   title={agentMode ? "Switch to standard Chat" : "Switch to Agent Mode (with tools)"}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${

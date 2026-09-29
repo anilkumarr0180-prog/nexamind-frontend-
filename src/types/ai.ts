@@ -1,4 +1,4 @@
-import type { MessageUsage, DocumentSourceCitation } from './message';
+import type { MessageUsage, ChatSourceCitation } from './message';
 
 export interface ChatRequestDTO {
   conversationId: string;
@@ -37,9 +37,9 @@ export interface OrchestratedChatResult {
     provider: string | null;
     parentMessageId?: string | null;
     usage: MessageUsage | null;
-    sources?: DocumentSourceCitation[] | null;
+    sources?: ChatSourceCitation[] | null;
     createdAt: string;
   };
-  sources?: DocumentSourceCitation[] | null;
+  sources?: ChatSourceCitation[] | null;
   usage: MessageUsage | null;
 }

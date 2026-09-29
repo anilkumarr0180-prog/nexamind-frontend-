@@ -571,7 +571,12 @@ export const BillingPage: React.FC = () => {
   /* Portal Mutation */
   const portalMutation = useMutation({
     mutationFn: getPortal,
-    onSuccess: (data) => { window.location.href = data.portalUrl; },
+    onSuccess: (data) => {
+      const win = window.open(data.portalUrl, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        window.location.href = data.portalUrl;
+      }
+    },
   });
 
   /* Cancel Auto-renew Mutation */
