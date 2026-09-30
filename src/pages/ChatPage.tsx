@@ -25,7 +25,7 @@ import {
 import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
-import { NexaMindIcon } from "@/components/ui";
+import { NexaMindIcon, AstraGalaxy } from "@/components/ui";
 import {
   type Message,
   type Conversation,
@@ -1158,6 +1158,17 @@ export const ChatPage: React.FC = () => {
       {/* Subtle ambient lighting mesh */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_800px_500px_at_50%_-80px,rgba(139,92,246,0.07),transparent_70%)]" />
 
+      {/* Astra Cosmic Galaxy Background — only visible on initial visit / empty state */}
+      {!hasMessages && !isCurrentConvStreaming && (
+        <AstraGalaxy
+          mode="spiral"
+          hasMessages={false}
+          isStreaming={false}
+          className="absolute inset-0 w-full h-full z-0 animate-in fade-in duration-500"
+          opacity={0.88}
+        />
+      )}
+
       {/* Messages Stream Area */}
       <div className="flex-1 overflow-y-auto min-h-0 flex flex-col relative z-10">
         {isLoadingMessages && conversationId ? (
@@ -1173,18 +1184,18 @@ export const ChatPage: React.FC = () => {
           </div>
         ) : !hasMessages && !isCurrentConvStreaming ? (
           /* Clean Empty State */
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-16 space-y-6 my-auto select-none max-w-2xl mx-auto w-full">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-16 space-y-6 my-auto select-none max-w-2xl mx-auto w-full relative z-10">
             <div className="relative flex items-center justify-center mb-1">
-              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#1e1b4b] via-[#16143c] to-[#0c0b1e] border border-violet-500/35 flex items-center justify-center shadow-xl shadow-violet-950/60 ring-4 ring-violet-500/10">
-                <NexaMindIcon className="w-8 h-8" />
+              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#1e1b4b]/80 via-[#16143c]/80 to-[#0c0b1e]/90 backdrop-blur-md border border-cyan-400/40 flex items-center justify-center shadow-2xl shadow-cyan-950/70 ring-4 ring-cyan-500/20 group transition-all duration-300 hover:scale-105 hover:border-cyan-300">
+                <NexaMindIcon className="w-9 h-9" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-[28px] sm:text-[34px] font-bold tracking-tight text-white leading-tight">
+              <h2 className="text-[28px] sm:text-[34px] font-bold tracking-tight text-white leading-tight drop-shadow-sm">
                 What can I help with today?
               </h2>
-              <p className="text-sm sm:text-[15px] text-[#8080a8] font-normal leading-relaxed">
+              <p className="text-sm sm:text-[15px] text-[#9090b8] font-normal leading-relaxed">
                 Ask a question, analyze ideas, or run an autonomous task
               </p>
             </div>
@@ -1209,18 +1220,19 @@ export const ChatPage: React.FC = () => {
                     }
                     handleSendMessage(promptText);
                   }}
-                  className="group relative flex items-center justify-between gap-3 text-left p-4 rounded-2xl bg-[#1e1e28]/90 hover:bg-[#24242f] border border-white/[0.1] hover:border-white/[0.2] shadow-sm hover:shadow-lg hover:shadow-black/20 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
+                  className="group relative flex items-center justify-between gap-3 text-left p-4 rounded-2xl bg-[#1e1e28]/75 backdrop-blur-md hover:bg-[#24242f]/90 border border-white/[0.08] hover:border-cyan-400/30 shadow-sm hover:shadow-lg hover:shadow-cyan-950/20 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
                 >
                   <span className="text-sm text-[#c8c8e0] group-hover:text-white leading-relaxed font-normal">
                     {promptText}
                   </span>
-                  <span className="text-sm text-[#6060a0] group-hover:text-white/70 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100">
+                  <span className="text-sm text-[#6060a0] group-hover:text-cyan-300 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100">
                     ↗
                   </span>
                 </button>
               ))}
             </div>
           </div>
+
         ) : (
           /* Natural message stream (~768-800px width like ChatGPT) */
           <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-7 sm:space-y-8">
