@@ -667,7 +667,7 @@ export const BillingPage: React.FC = () => {
   const plans: PlanCode[] = ['FREE', 'PLUS', 'PRO'];
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-7 sm:space-y-10">
 
       {/* ── Page header ── */}
       <div>
@@ -952,7 +952,7 @@ export const BillingPage: React.FC = () => {
         </div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {isSubLoading ? (
             [0, 1, 2].map((i) => (
               <div
@@ -1008,7 +1008,7 @@ export const BillingPage: React.FC = () => {
       )}
 
       {/* ── Trust & Value Props ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
         <div className="p-4 rounded-2xl bg-gradient-to-b from-white/[0.04] to-white/[0.01] border border-white/[0.07] flex items-start gap-3 shadow-sm">
           <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400 flex-shrink-0 shadow-[0_0_12px_rgba(139,92,246,0.15)]">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

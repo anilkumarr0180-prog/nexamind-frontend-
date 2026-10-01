@@ -12,6 +12,8 @@ import {
   postResumeSubscription,
   getPortal,
 } from "@/features/subscriptions";
+import { AppearanceSettings } from "@/features/theme";
+import { getAuthToken } from "@/lib/api/client";
 import type { PlanCode } from "@/types/subscription";
 
 const PLAN_LABELS: Record<PlanCode, string> = {
@@ -29,15 +31,17 @@ function formatDate(iso?: string | null): string {
   });
 }
 
+type SettingsTab = "appearance" | "billing" | "account";
+
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const tabParam = searchParams.get("tab");
-  const activeTab = tabParam === "account" ? "account" : "billing";
+  const tabParam = searchParams.get("tab") as SettingsTab | null;
+  const activeTab: SettingsTab = tabParam === "billing" ? "billing" : tabParam === "appearance" ? "appearance" : "account";
 
-  const setActiveTab = (tab: "billing" | "account") => {
+  const setActiveTab = (tab: SettingsTab) => {
     setSearchParams({ tab });
   };
 
@@ -47,6 +51,8 @@ export const SettingsPage: React.FC = () => {
     message: string;
   } | null>(null);
 
+  const isAuthed = Boolean(user && getAuthToken());
+
   /* User Credit Balance */
   const {
     data: balanceData,
@@ -55,6 +61,8 @@ export const SettingsPage: React.FC = () => {
   } = useQuery({
     queryKey: usageKeys.balance(),
     queryFn: () => getTokenBalance(),
+    enabled: isAuthed,
+    retry: false,
   });
 
   /* Active Subscription */
@@ -64,14 +72,15 @@ export const SettingsPage: React.FC = () => {
   } = useQuery({
     queryKey: subscriptionKeys.me(),
     queryFn: getMySubscription,
+    enabled: isAuthed,
     retry: (failureCount, error: unknown) => {
       const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 404) return false;
+      if (status === 401 || status === 404) return false;
       return failureCount < 2;
     },
   });
 
-  /* Portal Mutation (Manage Billing) */
+  /* Portal Mutation */
   const portalMutation = useMutation({
     mutationFn: getPortal,
     onMutate: () => setNotification(null),
@@ -138,23 +147,49 @@ export const SettingsPage: React.FC = () => {
   const periodEndFormatted = formatDate(subscription?.currentPeriodEnd);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
       {/* Settings Container */}
-      <div className="rounded-2xl bg-[#18181d] border border-white/[0.08] shadow-2xl shadow-black/60 overflow-hidden flex flex-col md:flex-row min-h-[520px]">
+      <div className="rounded-2xl bg-white dark:bg-[#18181d] border border-slate-200 dark:border-white/[0.08] shadow-2xl shadow-slate-300/40 dark:shadow-black/60 overflow-hidden flex flex-col md:flex-row min-h-[520px]">
         {/* Left Tabs Sidebar */}
-        <div className="w-full md:w-56 bg-[#131317] border-b md:border-b-0 md:border-r border-white/[0.08] p-3 flex md:flex-col gap-1 flex-shrink-0">
-          <div className="hidden md:block px-3 py-2 text-xs font-semibold text-[#7878a0] uppercase tracking-wider select-none">
+        <div className="w-full md:w-56 bg-slate-50/80 dark:bg-[#131317] border-b md:border-b-0 md:border-r border-slate-200 dark:border-white/[0.08] p-2 sm:p-3 flex md:flex-col gap-1 flex-shrink-0 overflow-x-auto scrollbar-none">
+          <div className="hidden md:block px-3 py-2 text-xs font-bold text-black dark:text-slate-200 uppercase tracking-wider select-none">
             Settings
           </div>
 
-          {/* Billing Tab */}
+          {/* 1. Account Tab (First) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("account")}
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
+              activeTab === "account"
+                ? "bg-slate-200/90 dark:bg-white/[0.12] text-black dark:text-white font-bold shadow-sm"
+                : "text-slate-800 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white font-semibold"
+            }`}
+          >
+            <svg
+              className="w-4 h-4 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
+            </svg>
+            <span>Account</span>
+          </button>
+
+          {/* 2. Billing Tab (Second) */}
           <button
             type="button"
             onClick={() => setActiveTab("billing")}
-            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "billing"
-                ? "bg-white/[0.1] text-white shadow-sm"
-                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
+                ? "bg-slate-200/90 dark:bg-white/[0.12] text-black dark:text-white font-bold shadow-sm"
+                : "text-slate-800 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white font-semibold"
             }`}
           >
             <svg
@@ -173,14 +208,14 @@ export const SettingsPage: React.FC = () => {
             <span>Billing</span>
           </button>
 
-          {/* Account Tab */}
+          {/* 3. Appearance Tab (Third) */}
           <button
             type="button"
-            onClick={() => setActiveTab("account")}
-            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-              activeTab === "account"
-                ? "bg-white/[0.1] text-white shadow-sm"
-                : "text-[#9090b0] hover:bg-white/[0.05] hover:text-[#e8e8f0]"
+            onClick={() => setActiveTab("appearance")}
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
+              activeTab === "appearance"
+                ? "bg-slate-200/90 dark:bg-white/[0.12] text-black dark:text-white font-bold shadow-sm"
+                : "text-slate-800 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white font-semibold"
             }`}
           >
             <svg
@@ -193,15 +228,15 @@ export const SettingsPage: React.FC = () => {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
               />
             </svg>
-            <span>Account</span>
+            <span>Appearance</span>
           </button>
         </div>
 
         {/* Right Content Panel */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col justify-between">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 flex flex-col justify-between">
           <div>
             {/* Notification Alert */}
             {notification && (
@@ -223,27 +258,30 @@ export const SettingsPage: React.FC = () => {
               </div>
             )}
 
+            {/* TAB: APPEARANCE */}
+            {activeTab === "appearance" && <AppearanceSettings />}
+
             {/* TAB: BILLING */}
             {activeTab === "billing" && (
               <div>
-                <div className="pb-4 mb-6 border-b border-white/[0.08]">
-                  <h2 className="text-xl font-semibold text-white tracking-tight">
+                <div className="pb-4 mb-6 border-b border-slate-200 dark:border-white/[0.08]">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                     Billing
                   </h2>
                 </div>
 
                 {isSubLoading ? (
                   <div className="space-y-6 py-6 animate-pulse">
-                    <div className="h-10 bg-white/[0.05] rounded-xl w-full" />
-                    <div className="h-14 bg-white/[0.05] rounded-xl w-full" />
+                    <div className="h-10 bg-slate-100 dark:bg-white/[0.05] rounded-xl w-full" />
+                    <div className="h-14 bg-slate-100 dark:bg-white/[0.05] rounded-xl w-full" />
                   </div>
                 ) : (
-                  <div className="divide-y divide-white/[0.08]">
+                  <div className="divide-y divide-slate-200 dark:divide-white/[0.08]">
                     {/* Row 1: Plan Title & Auto-renew status & Manage Button */}
                     <div className="pb-6 flex items-start justify-between gap-4">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2.5">
-                          <h3 className="text-base font-semibold text-white">
+                          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
                             NexaMind {planCode === "FREE" ? "Free" : planCode === "PLUS" ? "Plus" : "Pro"}
                           </h3>
                           {isPaid && (
@@ -252,17 +290,17 @@ export const SettingsPage: React.FC = () => {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-[#9090b0] leading-relaxed">
+                        <p className="text-sm text-slate-600 dark:text-slate-200 leading-relaxed font-medium">
                           {isPaid ? (
                             isCanceled ? (
                               <span>
                                 Auto-renew is turned off. Your benefits remain active until{" "}
-                                <strong className="text-slate-200">{periodEndFormatted}</strong>.
+                                <strong className="text-slate-900 dark:text-white font-bold">{periodEndFormatted}</strong>.
                               </span>
                             ) : (
                               <span>
                                 Your plan auto-renews on{" "}
-                                <strong className="text-slate-200">{periodEndFormatted}</strong>.
+                                <strong className="text-slate-900 dark:text-white font-bold">{periodEndFormatted}</strong>.
                               </span>
                             )
                           ) : (
@@ -320,7 +358,7 @@ export const SettingsPage: React.FC = () => {
                         ) : (
                           <Link
                             to="/app/billing"
-                            className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-500 transition-colors inline-flex items-center gap-1.5 flex-shrink-0"
+                            className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors inline-flex items-center gap-1.5 flex-shrink-0"
                           >
                             <span>Upgrade</span>
                             <span aria-hidden="true">→</span>
@@ -332,19 +370,19 @@ export const SettingsPage: React.FC = () => {
                     {/* Row 2: Cancel plan / Auto-renew Control */}
                     <div className="py-6 flex items-start justify-between gap-4">
                       <div className="space-y-1 min-w-0">
-                        <h4 className="text-sm font-medium text-white">
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                           {isPaid
                             ? isCanceled
                               ? "Resume subscription"
                               : "Cancel plan"
                             : "Upgrade your plan"}
                         </h4>
-                        <p className="text-xs text-[#9090b0] leading-relaxed max-w-md">
+                        <p className="text-xs text-slate-600 dark:text-slate-200 leading-relaxed max-w-md font-medium">
                           {isPaid ? (
                             isCanceled ? (
                               <span>
                                 Turn auto-renewal back on to keep your{" "}
-                                <strong className="text-slate-200">{planLabel}</strong> features
+                                <strong className="text-slate-900 dark:text-white font-bold">{planLabel}</strong> features
                                 without interruption.
                               </span>
                             ) : (
@@ -364,7 +402,7 @@ export const SettingsPage: React.FC = () => {
                               type="button"
                               onClick={() => resumeMutation.mutate()}
                               disabled={resumeMutation.isPending}
-                              className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-500 transition-colors cursor-pointer disabled:opacity-50 flex-shrink-0"
+                              className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50 flex-shrink-0"
                             >
                               {resumeMutation.isPending ? "Resuming..." : "Resume"}
                             </button>
@@ -381,7 +419,7 @@ export const SettingsPage: React.FC = () => {
                         ) : (
                           <Link
                             to="/app/billing"
-                            className="px-4 py-2 rounded-xl text-xs font-medium text-violet-300 hover:text-white bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 transition-colors inline-block flex-shrink-0"
+                            className="px-4 py-2 rounded-xl text-xs font-medium text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 transition-colors inline-block flex-shrink-0"
                           >
                             View Plans
                           </Link>
@@ -396,8 +434,8 @@ export const SettingsPage: React.FC = () => {
             {/* TAB: ACCOUNT */}
             {activeTab === "account" && (
               <div className="space-y-6">
-                <div className="pb-4 border-b border-white/[0.08]">
-                  <h2 className="text-xl font-semibold text-white tracking-tight">
+                <div className="pb-4 border-b border-slate-200 dark:border-white/[0.08]">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                     Account Profile
                   </h2>
                 </div>
@@ -419,7 +457,7 @@ export const SettingsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 select-none mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 select-none mb-1.5">
                       Account Status &amp; Role
                     </label>
                     <div className="flex items-center gap-2 pt-1">
@@ -433,10 +471,10 @@ export const SettingsPage: React.FC = () => {
                   </div>
 
                   {/* Credits Overview */}
-                  <div className="mt-6 p-4 rounded-xl bg-white/[0.03] border border-white/[0.07] flex items-center justify-between">
+                  <div className="mt-6 p-4 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.1] flex items-center justify-between">
                     <div>
-                      <span className="text-xs text-[#9090b0]">Available Credits</span>
-                      <p className="text-lg font-mono font-bold text-violet-300">
+                      <span className="text-xs font-bold text-black dark:text-white">Available Credits</span>
+                      <p className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">
                         {isBalanceLoading
                           ? "Loading..."
                           : isBalanceError
@@ -447,7 +485,7 @@ export const SettingsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setActiveTab("billing")}
-                      className="text-xs text-violet-400 hover:text-violet-300 font-medium transition-colors cursor-pointer"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition-colors cursor-pointer"
                     >
                       Manage in Billing →
                     </button>
@@ -458,14 +496,16 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           {/* Footer note */}
-          <div className="pt-6 mt-6 border-t border-white/[0.06] flex items-center justify-between text-xs text-[#7878a0]">
-            <span>Subscription &amp; payments powered securely via Polar.</span>
-            <Link
-              to="/app/billing"
-              className="text-violet-400 hover:text-violet-300 transition-colors"
-            >
-              Compare all plans →
-            </Link>
+          <div className="pt-6 mt-6 border-t border-slate-200 dark:border-white/[0.08] flex items-center justify-between text-xs font-bold text-black dark:text-slate-200">
+            <span>NexaMind Preferences &amp; Subscriptions</span>
+            {activeTab === "billing" && (
+              <Link
+                to="/app/billing"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition-colors"
+              >
+                Compare all plans →
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -477,13 +517,13 @@ export const SettingsPage: React.FC = () => {
             className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150"
             onClick={() => setShowCancelModal(false)}
           />
-          <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#1e1e24] border border-white/[0.12] shadow-2xl shadow-black/80 p-6 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-base font-semibold text-white mb-2">
+          <div className="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-[#1e1e24] border border-slate-200 dark:border-white/[0.12] shadow-2xl shadow-slate-400/40 dark:shadow-black/80 p-6 animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">
               Cancel auto-renewal?
             </h3>
-            <p className="text-sm text-[#9090b0] mb-6 leading-relaxed">
+            <p className="text-sm text-slate-600 dark:text-slate-200 mb-6 leading-relaxed font-medium">
               Your benefits will remain active until{" "}
-              <strong className="text-white">{periodEndFormatted}</strong>. After that,
+              <strong className="text-slate-900 dark:text-white font-bold">{periodEndFormatted}</strong>. After that,
               your account will automatically switch to the Free tier and you will not be
               charged again.
             </p>
@@ -491,7 +531,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowCancelModal(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-[#c8c8e0] bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 dark:text-white bg-slate-100 dark:bg-white/[0.08] hover:bg-slate-200 dark:hover:bg-white/[0.12] border border-slate-200 dark:border-white/[0.12] transition-colors cursor-pointer"
               >
                 Keep Plan
               </button>

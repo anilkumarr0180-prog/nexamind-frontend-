@@ -4,7 +4,16 @@
 
 @layer base {
   :root {
+    --accent-color: #3b82f6;
+    --bg-custom: #16161a;
+    --fg-custom: #e8e8f0;
     color-scheme: dark;
+  }
+
+  html.light {
+    --bg-custom: #fafafc;
+    --fg-custom: #0f172a;
+    color-scheme: light;
   }
 
   body {
@@ -17,28 +26,45 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.light body {
+    background-color: #fafafc;
+    color: #0f172a;
   }
 
   /* Sleek, visible but subtle scrollbars */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.14);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  html.light ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.16);
+  }
+  html.light ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.28);
   }
 }
 
 @layer utilities {
   .bg-canvas {
     background-color: #16161a;
+  }
+
+  html.light .bg-canvas {
+    background-color: #fafafc;
   }
 
   .glass-panel {
@@ -48,11 +74,22 @@
     border: 1px solid rgba(255, 255, 255, 0.09);
   }
 
+  html.light .glass-panel {
+    background-color: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
   .glass-card {
     background-color: rgba(26, 26, 34, 0.70);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  html.light .glass-card {
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   .glow-border {
@@ -63,4 +100,311 @@
   .focus-ring {
     @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:border-brand-500/80;
   }
+}
+
+/* Light mode overrides for existing deep-dark layout utilities */
+html.light .bg-\[\#16161a\] {
+  background-color: #fafafc !important;
+}
+html.light .bg-\[\#16161a\]\/90 {
+  background-color: rgba(250, 250, 252, 0.94) !important;
+}
+html.light .bg-\[\#0f0f13\] {
+  background-color: #f4f4f7 !important;
+}
+html.light .bg-\[\#18181d\],
+html.light .bg-\[\#1c1c22\],
+html.light .bg-\[\#1e1e24\],
+html.light .bg-\[\#1e1e26\],
+html.light .bg-\[\#131317\],
+html.light .bg-\[\#1a1a22\] {
+  background-color: #f9f9fb !important;
+}
+html.light .bg-\[\#0c0c0e\],
+html.light .bg-\[\#111115\] {
+  background-color: #f3f4f6 !important;
+}
+
+/* Light mode high-contrast text overrides to eliminate dim/faded text */
+html.light .text-slate-400 {
+  color: #334155 !important;
+}
+html.light .text-slate-500 {
+  color: #0f172a !important;
+}
+html.light .text-slate-600 {
+  color: #0f172a !important;
+}
+html.light .text-slate-700 {
+  color: #000000 !important;
+}
+html.light .text-slate-800 {
+  color: #000000 !important;
+}
+html.light .text-slate-900 {
+  color: #000000 !important;
+}
+
+html.light .text-\[\#e8e8f0\],
+html.light .text-\[\#f0f0f8\],
+html.light .text-\[\#f0f0f5\],
+html.light .text-\[\#c8c8e0\],
+html.light .text-\[\#c0c0cc\],
+html.light .text-\[\#d8d8ec\] {
+  color: #000000 !important;
+}
+html.light .text-\[\#9e9ea8\],
+html.light .text-\[\#9090b0\],
+html.light .text-\[\#7878a0\],
+html.light .text-\[\#a1a1aa\],
+html.light .text-\[\#60608a\],
+html.light .text-\[\#6060a0\],
+html.light .text-\[\#c4c4e8\],
+html.light .text-\[\#a0a0c8\],
+html.light .text-\[\#8080a8\],
+html.light .text-\[\#8080a0\],
+html.light .text-\[\#9090b8\],
+html.light .text-\[\#a0a0b8\],
+html.light .text-\[\#50506a\] {
+  color: #0f172a !important;
+}
+
+/* Light mode assistant prose typography */
+html.light .prose {
+  color: #0f172a !important;
+}
+html.light .prose p,
+html.light .prose li,
+html.light .prose td {
+  color: #0f172a !important;
+}
+html.light .prose strong,
+html.light .prose h1,
+html.light .prose h2,
+html.light .prose h3,
+html.light .prose h4,
+html.light .prose th {
+  color: #000000 !important;
+}
+
+/* Dark mode enhanced high-contrast luminous text overrides */
+html.dark body,
+.dark body {
+  color: #ffffff;
+}
+
+/* Primary text: crisp pure white */
+html.dark .text-\[\#e8e8f0\],
+html.dark .text-\[\#f0f0f8\],
+html.dark .text-\[\#f0f0f5\],
+html.dark .text-\[\#d8d8ec\],
+html.dark .text-\[\#c8c8e0\],
+html.dark .text-\[\#c0c0cc\],
+.dark .text-\[\#e8e8f0\],
+.dark .text-\[\#f0f0f8\],
+.dark .text-\[\#f0f0f5\],
+.dark .text-\[\#d8d8ec\],
+.dark .text-\[\#c8c8e0\],
+.dark .text-\[\#c0c0cc\] {
+  color: #ffffff !important;
+}
+
+/* Secondary text: bright platinum silver */
+html.dark .text-\[\#9e9ea8\],
+html.dark .text-\[\#9090b0\],
+html.dark .text-\[\#9090b8\],
+html.dark .text-\[\#a0a0b8\],
+html.dark .text-\[\#a1a1aa\],
+html.dark .text-\[\#c4c4e8\],
+.dark .text-\[\#9e9ea8\],
+.dark .text-\[\#9090b0\],
+.dark .text-\[\#9090b8\],
+.dark .text-\[\#a0a0b8\],
+.dark .text-\[\#a1a1aa\],
+.dark .text-\[\#c4c4e8\] {
+  color: #f1f5f9 !important;
+}
+
+/* Tertiary/labels: bright slate-200 */
+html.dark .text-\[\#7878a0\],
+html.dark .text-\[\#8080a0\],
+html.dark .text-\[\#8080a8\],
+html.dark .text-\[\#a0a0c8\],
+.dark .text-\[\#7878a0\],
+.dark .text-\[\#8080a0\],
+.dark .text-\[\#8080a8\],
+.dark .text-\[\#a0a0c8\] {
+  color: #e2e8f0 !important;
+}
+
+/* Quaternary/muted: clean slate-300 */
+html.dark .text-\[\#60608a\],
+html.dark .text-\[\#50506a\],
+html.dark .text-\[\#6060a0\],
+.dark .text-\[\#60608a\],
+.dark .text-\[\#50506a\],
+.dark .text-\[\#6060a0\] {
+  color: #cbd5e1 !important;
+}
+
+/* Global slate elevation in dark mode */
+html.dark .text-slate-400,
+.dark .text-slate-400 {
+  color: #e2e8f0 !important;
+}
+html.dark .text-slate-500,
+.dark .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+html.dark .text-slate-600,
+.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+/* Dark mode assistant prose markdown */
+html.dark .prose,
+.dark .prose {
+  color: #f8fafc !important;
+}
+html.dark .prose p,
+html.dark .prose li,
+html.dark .prose td,
+.dark .prose p,
+.dark .prose li,
+.dark .prose td {
+  color: #f8fafc !important;
+}
+html.dark .prose strong,
+html.dark .prose h1,
+html.dark .prose h2,
+html.dark .prose h3,
+html.dark .prose h4,
+html.dark .prose th,
+.dark .prose strong,
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.dark .prose th {
+  color: #ffffff !important;
+}
+html.dark .prose blockquote,
+.dark .prose blockquote {
+  color: #e2e8f0 !important;
+}
+
+html.light .border-white\/\[0\.06\],
+html.light .border-white\/\[0\.07\],
+html.light .border-white\/\[0\.08\],
+html.light .border-white\/\[0\.1\],
+html.light .border-white\/\[0\.12\],
+html.light .border-white\/10,
+html.light .border-white\/15,
+html.light .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .hover\:bg-white\/\[0\.05\]:hover,
+html.light .hover\:bg-white\/\[0\.06\]:hover,
+html.light .hover\:bg-white\/\[0\.07\]:hover,
+html.light .hover\:bg-white\/\[0\.08\]:hover,
+html.light .hover\:bg-white\/\[0\.1\]:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light .bg-\[\#1e1e28\]\/75 {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light .hover\:bg-\[\#24242f\]\/90:hover {
+  background-color: #ffffff !important;
+}
+
+/* Chat composer box dark/light theme enforcement */
+.chat-composer-box {
+  background-color: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html.dark .chat-composer-box,
+.dark .chat-composer-box {
+  background-color: #1d1d25 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Form controls (input, textarea) and placeholders */
+html.light input,
+.light input,
+html.light textarea,
+.light textarea {
+  color: #000000 !important;
+}
+
+html.dark input,
+.dark input,
+html.dark textarea,
+.dark textarea {
+  color: #ffffff !important;
+}
+
+html.light input::placeholder,
+.light input::placeholder,
+html.light textarea::placeholder,
+.light textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark input::placeholder,
+.dark input::placeholder,
+html.dark textarea::placeholder,
+.dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/\[0\.04\],
+html.light .bg-white\/\[0\.05\],
+html.light .bg-white\/\[0\.06\],
+html.light .bg-white\/\[0\.07\],
+html.light .bg-white\/\[0\.08\] {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .bg-white\/\[0\.1\] {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .shadow-2xl.shadow-black\/60,
+html.light .shadow-2xl.shadow-black\/80 {
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Reduced motion preference */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* High contrast mode */
+html[data-contrast="high"].light {
+  --fg-custom: #000000;
+  border-color: #000000 !important;
+}
+html[data-contrast="high"].dark {
+  --fg-custom: #ffffff;
+  border-color: #ffffff !important;
+}
+
+/* Optimize touch and pointer interaction response for fast INP */
+button,
+a,
+input,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
 }

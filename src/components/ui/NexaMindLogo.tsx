@@ -176,10 +176,10 @@ export const NexaMindLogo: React.FC<NexaMindLogoProps> = ({
 
       {showText && (
         <span
-          className={`${current.text} font-bold tracking-tight text-white flex items-center select-none`}
+          className={`${current.text} font-bold tracking-tight text-slate-900 dark:text-white flex items-center select-none`}
         >
           Nexa
-          <span className="bg-gradient-to-r from-violet-400 via-indigo-300 to-cyan-400 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 dark:from-violet-400 dark:via-indigo-300 dark:to-cyan-400 bg-clip-text text-transparent">
             Mind
           </span>
         </span>
