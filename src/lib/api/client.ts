@@ -55,12 +55,27 @@ export const normalizeApiBaseUrl = (rawUrl?: string): string => {
 
 export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env?.VITE_API_BASE_URL);
 
+export const warmUpBackend = (): void => {
+  try {
+    const rootUrl = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+    // Fire-and-forget background ping to wake up sleeping free-tier hosting (e.g. Render)
+    fetch(`${rootUrl}/health`, { method: 'GET', mode: 'cors', cache: 'no-store' }).catch(() => {});
+  } catch {
+    // Non-blocking warmup
+  }
+};
+
+// Initiate early background warmup on script load
+if (typeof window !== 'undefined') {
+  warmUpBackend();
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: 60000, // 60 seconds to safely accommodate cold starts
 });
 
 // Request interceptor: attach bearer token

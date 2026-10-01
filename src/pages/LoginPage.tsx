@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { NexaMindIcon } from '@/components/ui';
 import { classifyApiError } from '@/lib/utils/error';
+import { warmUpBackend } from '@/lib/api/client';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -15,8 +16,27 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [slowWakeup, setSlowWakeup] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  // Pre-warm backend immediately so cold starts spin up while user enters credentials
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
+
+  // Display reassuring feedback if login takes > 2.5s due to server cold start
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isSubmitting) {
+      timer = setTimeout(() => {
+        setSlowWakeup(true);
+      }, 2500);
+    } else {
+      setSlowWakeup(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isSubmitting]);
 
   const validateForm = (): boolean => {
     const errors: { email?: string; password?: string } = {};
@@ -187,6 +207,16 @@ export const LoginPage: React.FC = () => {
             >
               Sign In
             </Button>
+
+            {isSubmitting && slowWakeup && (
+              <div className="flex items-center justify-center gap-2 text-xs text-indigo-200 bg-indigo-950/60 border border-indigo-500/25 py-2 px-3 rounded-xl animate-in fade-in duration-300 select-none">
+                <span className="relative flex h-2 w-2 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+                </span>
+                <span>Connecting to cloud server (waking up instance)...</span>
+              </div>
+            )}
           </form>
         </div>
 
