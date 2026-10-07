@@ -109,6 +109,12 @@ export const streamAgentExecution = async (
                 callbacks.onStatus?.(payload.status, payload.message);
               } else if (payload.type === "tool_status") {
                 callbacks.onToolStatus?.(payload);
+              } else if (payload.type === "plan") {
+                callbacks.onPlan?.(payload.plan);
+              } else if (payload.type === "trace") {
+                callbacks.onTrace?.(payload.trace || payload);
+              } else if (payload.type === "sources") {
+                callbacks.onSources?.(payload.sources);
               } else if (payload.type === "chunk") {
                 if (payload.content) {
                   callbacks.onChunk?.(payload.content);

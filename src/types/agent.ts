@@ -51,6 +51,38 @@ export interface AgentUsage {
   totalTokens: number;
 }
 
+export type PlanStepStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped";
+
+export interface PlanStep {
+  id: string;
+  title: string;
+  status: PlanStepStatus;
+  tool?: string;
+  error?: string;
+}
+
+export interface AgentPlan {
+  steps: PlanStep[];
+}
+
+export interface AgentTraceStep {
+  step: number;
+  type: "tool_call" | "tool_result" | "thought" | "final_response" | "error";
+  tool?: string;
+  toolCallId?: string;
+  input?: Record<string, unknown>;
+  output?: unknown;
+  error?: string;
+  status?: "running" | "completed" | "failed";
+  durationMs?: number;
+  timestamp: string;
+}
+
 export interface AgentExecutionResult {
   executionId: string;
   userId: string;
@@ -59,6 +91,9 @@ export interface AgentExecutionResult {
   output: string | null;
   stepsCompleted: number;
   toolCalls: ToolCallInfo[];
+  trace?: AgentTraceStep[];
+  sources?: any[];
+  plan?: AgentPlan;
   usage: AgentUsage;
   startedAt: string;
   completedAt: string;
@@ -100,7 +135,10 @@ export interface ToolStatusEvent {
 export interface AgentStreamCallbacks {
   onStart?: (data: { userMessage?: any; conversationId?: string }) => void;
   onStatus?: (status: string, message: string) => void;
+  onPlan?: (plan: AgentPlan) => void;
   onToolStatus?: (event: ToolStatusEvent) => void;
+  onTrace?: (trace: AgentTraceStep) => void;
+  onSources?: (sources: any[]) => void;
   onChunk?: (chunk: string) => void;
   onDone?: (result: AgentExecutionResult) => void;
   onError?: (error: Error) => void;

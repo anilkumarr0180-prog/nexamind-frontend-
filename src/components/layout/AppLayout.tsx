@@ -14,6 +14,8 @@ import { usageKeys, getTokenBalance } from "@/features/usage";
 import { memoryKeys, getMemories } from "@/features/memories";
 import { subscriptionKeys, getMySubscription } from "@/features/subscriptions";
 import { NexaMindLogo } from "@/components/ui";
+import { useTheme } from "@/features/theme";
+import { getAuthToken } from "@/lib/api/client";
 import type { Conversation } from "@/types";
 
 interface GroupedConversations {
@@ -64,6 +66,7 @@ export const AppLayout = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, logout } = useAuth();
+  const { resolvedMode, setMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Dropdown action menu state
@@ -124,6 +127,8 @@ export const AppLayout = () => {
     }
   }, [editingChatId]);
 
+  const isAuthed = Boolean(user && getAuthToken());
+
   // 1. Live Conversations from Backend
   const {
     data: conversationsData,
@@ -133,6 +138,8 @@ export const AppLayout = () => {
   } = useQuery({
     queryKey: conversationKeys.lists(),
     queryFn: () => getConversations({ limit: 100 }),
+    enabled: isAuthed,
+    retry: false,
   });
 
   const allConversations = useMemo<Conversation[]>(
@@ -156,14 +163,18 @@ export const AppLayout = () => {
   const { data: balanceData, isLoading: isBalanceLoading, isError: isBalanceError } = useQuery({
     queryKey: usageKeys.balance(),
     queryFn: () => getTokenBalance(),
-    refetchInterval: 15000,
+    enabled: isAuthed,
+    retry: false,
+    refetchInterval: isAuthed ? 15000 : false,
   });
 
   // 3. Live Memories Count
   const { data: memoriesData } = useQuery({
     queryKey: memoryKeys.lists(),
     queryFn: () => getMemories(),
-    refetchInterval: 20000,
+    enabled: isAuthed,
+    retry: false,
+    refetchInterval: isAuthed ? 20000 : false,
   });
   const activeMemoriesCount = memoriesData?.length ?? 0;
 
@@ -171,6 +182,8 @@ export const AppLayout = () => {
   const { data: subscriptionData } = useQuery({
     queryKey: subscriptionKeys.me(),
     queryFn: getMySubscription,
+    enabled: isAuthed,
+    retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -361,9 +374,9 @@ export const AppLayout = () => {
           to={`/app/chat/${chat._id}`}
           onClick={() => setMobileMenuOpen(false)}
           aria-current={isCurrent ? "page" : undefined}
-          className={`flex items-center justify-between rounded-lg px-3 py-2.5 text-[13px] transition-colors duration-150 ${isCurrent
-              ? "bg-white/[0.07] text-[#f0f0f5] font-medium"
-              : "text-[#c0c0cc] hover:bg-white/[0.05] hover:text-[#f0f0f5]"
+          className={`flex items-center justify-between rounded-lg px-3 py-2 text-[13px] transition-colors duration-150 ${isCurrent
+              ? "bg-slate-200/90 dark:bg-white/[0.12] text-black dark:text-white font-bold"
+              : "text-black dark:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white font-medium"
             }`}
         >
           <span className="truncate flex-1 min-w-0 pr-1 text-left" title={chat.title}>
@@ -378,7 +391,7 @@ export const AppLayout = () => {
               e.stopPropagation();
               setActiveMenuId(isMenuOpen ? null : chat._id);
             }}
-            className={`p-1 rounded text-[#9e9ea8] hover:text-white hover:bg-white/[0.08] transition-all flex-shrink-0 cursor-pointer ${isMenuOpen || isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            className={`p-1 rounded text-slate-700 dark:text-slate-300 hover:text-black dark:hover:text-white hover:bg-slate-200/80 dark:hover:bg-white/[0.08] transition-all flex-shrink-0 cursor-pointer ${isMenuOpen || isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
               }`}
             title="Options"
             aria-label="Conversation options"
@@ -398,15 +411,15 @@ export const AppLayout = () => {
         {isMenuOpen && (
           <div
             ref={menuRef}
-            className="absolute right-2 top-8 z-30 w-36 rounded-xl bg-[#1e1e26] border border-white/[0.12] shadow-xl py-1 text-[13px] text-[#e8e8f0] animate-in fade-in zoom-in-95"
+            className="absolute right-2 top-8 z-30 w-36 rounded-xl bg-white dark:bg-[#1e1e26] border border-slate-200 dark:border-white/[0.12] shadow-xl shadow-slate-300/40 dark:shadow-black/70 py-1 text-[13px] text-slate-800 dark:text-white animate-in fade-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={(e) => handleStartRename(e, chat)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.07] hover:text-white text-left transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-900 dark:hover:text-white text-left transition-colors cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5 text-[#9e9ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               <span>Rename</span>
@@ -416,9 +429,9 @@ export const AppLayout = () => {
               <button
                 type="button"
                 onClick={(e) => handleUnarchiveConversation(e, chat._id)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.07] hover:text-white text-left transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-900 dark:hover:text-white text-left transition-colors cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5 text-[#9e9ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                 </svg>
                 <span>Unarchive</span>
@@ -427,21 +440,21 @@ export const AppLayout = () => {
               <button
                 type="button"
                 onClick={(e) => handleArchiveConversation(e, chat._id)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.07] hover:text-white text-left transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-900 dark:hover:text-white text-left transition-colors cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5 text-[#9e9ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                 </svg>
                 <span>Archive</span>
               </button>
             )}
 
-            <div className="h-px bg-white/10 my-1" />
+            <div className="h-px bg-slate-200 dark:bg-white/10 my-1" />
 
             <button
               type="button"
               onClick={(e) => handleDeleteConversation(e, chat._id)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-left transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 text-left transition-colors cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -459,7 +472,7 @@ export const AppLayout = () => {
 
     return (
       <div key={title} className="space-y-0.5 py-1">
-        <div className="px-3 pt-3 pb-1.5 text-[11px] font-semibold text-[#7878a0] uppercase tracking-widest select-none text-left">
+        <div className="px-3 pt-3 pb-1.5 text-[11px] font-bold text-black dark:text-slate-200 uppercase tracking-wider select-none text-left">
           {title}
         </div>
         {items.map((chat) => renderConversationItem(chat))}
@@ -484,7 +497,7 @@ export const AppLayout = () => {
             {/* Sidebar collapse button — desktop only */}
             <button
               onClick={() => setSidebarCollapsed(true)}
-              className="hidden md:flex rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.07] transition-colors"
+              className="hidden md:flex rounded-lg p-1.5 text-slate-700 dark:text-[#9090b0] hover:text-black dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.07] transition-colors"
               aria-label="Collapse sidebar"
               title="Close sidebar"
             >
@@ -497,7 +510,7 @@ export const AppLayout = () => {
             {/* Close button for mobile */}
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="md:hidden rounded-lg p-1.5 text-[#9e9ea8] hover:text-white hover:bg-white/[0.06] transition-colors"
+              className="md:hidden rounded-lg p-1.5 text-slate-700 dark:text-[#9e9ea8] hover:text-black dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.06] transition-colors"
               aria-label="Close navigation"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -513,7 +526,7 @@ export const AppLayout = () => {
           <button
             type="button"
             onClick={handleNewChat}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#c8c8e0] hover:bg-white/[0.07] hover:text-white text-sm font-normal transition-all cursor-pointer group"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-black dark:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.1] hover:text-black dark:hover:text-white text-sm font-semibold transition-all cursor-pointer group"
           >
             <svg className="w-4.5 h-4.5 flex-shrink-0 opacity-80 group-hover:opacity-100" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -528,10 +541,10 @@ export const AppLayout = () => {
               setIsSearchActive((prev) => !prev);
               setSearchQuery("");
             }}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-normal transition-all cursor-pointer group ${
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group ${
               isSearchActive
-                ? "bg-white/[0.07] text-white"
-                : "text-[#c8c8e0] hover:bg-white/[0.07] hover:text-white"
+                ? "bg-slate-200/70 dark:bg-white/[0.1] text-black dark:text-white"
+                : "text-black dark:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.1] hover:text-black dark:hover:text-white"
             }`}
           >
             <svg className="w-4.5 h-4.5 flex-shrink-0 opacity-80 group-hover:opacity-100" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -550,7 +563,7 @@ export const AppLayout = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Escape") { setIsSearchActive(false); setSearchQuery(""); } }}
                 placeholder="Search conversations..."
-                className="w-full bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-[#e8e8f0] placeholder-[#60608a] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
+                className="w-full bg-slate-100 dark:bg-white/[0.08] border border-slate-200 dark:border-white/[0.15] rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
               />
             </div>
           )}
@@ -573,25 +586,25 @@ export const AppLayout = () => {
               <button
                 type="button"
                 onClick={() => refetchConversations()}
-                className="px-2.5 py-1 text-xs rounded bg-white/[0.08] hover:bg-white/[0.12] text-[#e8e8f0] transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-xs rounded bg-white/[0.08] hover:bg-white/[0.12] text-white transition-colors cursor-pointer"
               >
                 Retry
               </button>
             </div>
           ) : activeConversations.length === 0 && archivedConversations.length === 0 ? (
-            <div className="px-3 py-10 text-center text-sm text-[#7878a0]">
+            <div className="px-3 py-10 text-center text-sm text-slate-700 dark:text-slate-300">
               No conversations yet
             </div>
           ) : searchQuery.trim() ? (
             /* Search results */
             <div className="space-y-0.5 py-1">
-              <div className="px-3 pt-3 pb-1.5 text-[11px] font-semibold text-[#7878a0] uppercase tracking-widest select-none text-left">
+              <div className="px-3 pt-3 pb-1.5 text-[11px] font-bold text-black dark:text-slate-200 uppercase tracking-widest select-none text-left">
                 Results
               </div>
               {activeConversations.filter((c) =>
                 c.title.toLowerCase().includes(searchQuery.toLowerCase())
               ).length === 0 ? (
-                <div className="px-3 py-6 text-center text-sm text-[#7878a0]">No matches found</div>
+                <div className="px-3 py-6 text-center text-sm text-slate-700 dark:text-slate-300">No matches found</div>
               ) : (
                 activeConversations
                   .filter((c) => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -607,11 +620,11 @@ export const AppLayout = () => {
 
               {/* Archived Conversations Collapsible Section */}
               {archivedConversations.length > 0 && (
-                <div className="pt-3 border-t border-white/[0.06] mt-3">
+                <div className="pt-3 border-t border-slate-200 dark:border-white/[0.06] mt-3">
                   <button
                     type="button"
                     onClick={() => setIsArchivedExpanded(!isArchivedExpanded)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#7878a0] hover:text-[#c0c0cc] transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-black dark:text-slate-200 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                   >
                     <span>Archived ({archivedConversations.length})</span>
                     <svg
@@ -643,7 +656,7 @@ export const AppLayout = () => {
         {userMenuOpen && (
           <div
             ref={userMenuRef}
-            className="absolute bottom-full mb-2 left-2 right-2 z-50 rounded-2xl bg-[#1e1e24] border border-white/[0.12] shadow-2xl shadow-black/80 p-1.5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 select-none"
+            className="absolute bottom-full mb-2 left-2 right-2 z-50 rounded-2xl bg-white dark:bg-[#1e1e24] border border-slate-200 dark:border-white/[0.12] shadow-2xl shadow-slate-300/50 dark:shadow-black/80 p-1.5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 select-none"
           >
             {/* Top User Row / Profile */}
             <NavLink
@@ -652,27 +665,27 @@ export const AppLayout = () => {
                 setUserMenuOpen(false);
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.06] transition-colors cursor-pointer group"
+              className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-700 to-indigo-800 border border-white/15 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-600 to-violet-700 dark:from-violet-700 dark:to-indigo-800 border border-white/20 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 shadow-sm">
                   {(user?.name || user?.email || "U")[0].toUpperCase()}
                 </div>
                 <div className="min-w-0 text-left">
-                  <p className="text-sm font-semibold text-[#f0f0f8] truncate leading-tight group-hover:text-white" title={user?.name || user?.email || "Nexa User"}>
+                  <p className="text-sm font-bold text-black dark:text-white truncate leading-tight group-hover:text-indigo-600 dark:group-hover:text-white" title={user?.name || user?.email || "Nexa User"}>
                     {user?.name || user?.email || "Nexa User"}
                   </p>
-                  <p className="text-[11px] font-mono text-[#7878a0] leading-tight mt-0.5">
+                  <p className="text-[11px] font-mono text-slate-800 dark:text-slate-200 font-bold leading-tight mt-0.5">
                     {isBalanceLoading ? "Loading..." : isBalanceError ? "Unavailable" : `${balanceData?.balance ?? 0} credits`}
                   </p>
                 </div>
               </div>
-              <svg className="w-4 h-4 text-[#7878a0] group-hover:text-white transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 text-slate-600 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </NavLink>
 
-            <div className="my-1 border-t border-white/[0.08]" />
+            <div className="my-1 border-t border-slate-200 dark:border-white/[0.08]" />
 
             {/* Upgrade plan */}
             <NavLink
@@ -682,14 +695,14 @@ export const AppLayout = () => {
                 setMobileMenuOpen(false);
               }}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
                   isActive
-                    ? "bg-white/[0.08] text-white"
-                    : "text-[#c8c8e0] hover:bg-white/[0.06] hover:text-white"
+                    ? "bg-slate-100 dark:bg-white/[0.12] text-indigo-600 dark:text-white font-bold"
+                    : "text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white"
                 }`
               }
             >
-              <svg className="w-4 h-4 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4 text-indigo-600 dark:text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
               </svg>
               <span>{subscriptionData?.planCode && subscriptionData.planCode !== "FREE" ? "Manage plan" : "Upgrade plan"}</span>
@@ -703,21 +716,21 @@ export const AppLayout = () => {
                 setMobileMenuOpen(false);
               }}
               className={({ isActive }) =>
-                `flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                `flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
                   isActive
-                    ? "bg-white/[0.08] text-white"
-                    : "text-[#c8c8e0] hover:bg-white/[0.06] hover:text-white"
+                    ? "bg-slate-100 dark:bg-white/[0.12] text-indigo-600 dark:text-white font-bold"
+                    : "text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white"
                 }`
               }
             >
               <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-[#9090b0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <svg className="w-4 h-4 text-slate-700 dark:text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
                 <span>Memories</span>
               </div>
               {activeMemoriesCount > 0 && (
-                <span className="text-[10px] text-[#a1a1aa] bg-white/[0.08] border border-white/[0.08] px-1.5 py-0.5 rounded-full font-mono">
+                <span className="text-[10px] text-slate-800 dark:text-white bg-slate-200 dark:bg-white/[0.15] border border-slate-300 dark:border-white/[0.15] px-1.5 py-0.5 rounded-full font-mono font-bold">
                   {activeMemoriesCount}
                 </span>
               )}
@@ -731,21 +744,21 @@ export const AppLayout = () => {
                 setMobileMenuOpen(false);
               }}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
                   isActive
-                    ? "bg-white/[0.08] text-white"
-                    : "text-[#c8c8e0] hover:bg-white/[0.06] hover:text-white"
+                    ? "bg-slate-100 dark:bg-white/[0.12] text-indigo-600 dark:text-white font-bold"
+                    : "text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/[0.08] hover:text-black dark:hover:text-white"
                 }`
               }
             >
-              <svg className="w-4 h-4 text-[#9090b0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4 text-slate-700 dark:text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span>Settings</span>
             </NavLink>
 
-            <div className="my-1 border-t border-white/[0.08]" />
+            <div className="my-1 border-t border-slate-200 dark:border-white/[0.08]" />
 
             {/* Log out */}
             <button
@@ -755,9 +768,9 @@ export const AppLayout = () => {
                 setMobileMenuOpen(false);
                 handleLogout();
               }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-[#c8c8e0] hover:bg-white/[0.06] hover:text-rose-300 transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 hover:bg-rose-50 dark:hover:bg-white/[0.08] hover:text-rose-600 dark:hover:text-rose-300 transition-colors cursor-pointer text-left"
             >
-              <svg className="w-4 h-4 text-[#9090b0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="w-4 h-4 text-slate-700 dark:text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
               <span>Log out</span>
@@ -771,25 +784,25 @@ export const AppLayout = () => {
           type="button"
           onClick={() => setUserMenuOpen((prev) => !prev)}
           className={`w-full flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer group ${
-            userMenuOpen ? "bg-white/[0.08]" : "hover:bg-white/[0.05]"
+            userMenuOpen ? "bg-slate-200/80 dark:bg-white/[0.12]" : "hover:bg-slate-200/50 dark:hover:bg-white/[0.06]"
           }`}
           aria-expanded={userMenuOpen}
           aria-haspopup="true"
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-700 to-indigo-800 border border-white/15 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-600 to-violet-700 dark:from-violet-700 dark:to-indigo-800 border border-white/20 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 shadow-sm">
               {(user?.name || user?.email || "U")[0].toUpperCase()}
             </div>
             <div className="min-w-0 text-left">
-              <p className="text-sm font-semibold text-[#f0f0f8] truncate leading-tight group-hover:text-white" title={user?.name || user?.email || "Nexa User"}>
+              <p className="text-sm font-bold text-black dark:text-white truncate leading-tight group-hover:text-indigo-600 dark:group-hover:text-white" title={user?.name || user?.email || "Nexa User"}>
                 {user?.name || user?.email || "Nexa User"}
               </p>
-              <p className="text-[11px] font-mono text-[#7878a0] leading-tight mt-0.5">
+              <p className="text-[11px] font-mono text-slate-800 dark:text-slate-200 font-bold leading-tight mt-0.5">
                 {isBalanceLoading ? "Loading..." : isBalanceError ? "Unavailable" : `${balanceData?.balance ?? 0} credits`}
               </p>
             </div>
           </div>
-          <div className="text-[#9090b0] group-hover:text-white p-1 transition-colors flex-shrink-0">
+          <div className="text-slate-600 dark:text-slate-300 group-hover:text-black dark:group-hover:text-white p-1 transition-colors flex-shrink-0">
             <svg className={`w-4 h-4 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
             </svg>
@@ -800,7 +813,7 @@ export const AppLayout = () => {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#16161a] text-[#e8e8f0] font-sans">
+    <div className="flex h-screen h-[100dvh] w-full max-w-full overflow-hidden bg-[#16161a] text-[#e8e8f0] font-sans">
       {/* Desktop Sidebar */}
       <aside className={`hidden md:flex w-64 min-w-[16rem] max-w-[16rem] flex-shrink-0 overflow-hidden box-border transition-all duration-300 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
         {sidebarContent}
@@ -813,7 +826,7 @@ export const AppLayout = () => {
             className="fixed inset-0 bg-black/60 backdrop-blur-xs"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="relative w-72 flex-shrink-0 z-10 animate-in slide-in-from-left duration-200">
+          <div className="relative w-[82vw] max-w-[18rem] flex-shrink-0 z-10 animate-in slide-in-from-left duration-200">
             {sidebarContent}
           </div>
         </div>
@@ -828,7 +841,7 @@ export const AppLayout = () => {
             {sidebarCollapsed && (
               <button
                 onClick={() => setSidebarCollapsed(false)}
-                className="hidden md:flex rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.07] transition-colors flex-shrink-0"
+                className="hidden md:flex rounded-lg p-1.5 text-slate-700 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors flex-shrink-0"
                 aria-label="Open sidebar"
                 title="Open sidebar"
               >
@@ -841,7 +854,7 @@ export const AppLayout = () => {
             {/* Mobile menu trigger */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden rounded-lg p-1.5 text-[#9090b0] hover:text-white hover:bg-white/[0.06] transition-colors flex-shrink-0"
+              className="md:hidden rounded-lg p-1.5 text-slate-700 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors flex-shrink-0"
               aria-label="Open sidebar menu"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -851,7 +864,7 @@ export const AppLayout = () => {
 
             {/* Title */}
             {getHeaderTitle() ? (
-              <h1 className="text-[15px] font-semibold text-[#f0f0f8] tracking-tight truncate" title={getHeaderTitle()}>
+              <h1 className="text-[15px] font-bold text-black dark:text-white tracking-tight truncate" title={getHeaderTitle()}>
                 {getHeaderTitle()}
               </h1>
             ) : null}
@@ -871,7 +884,7 @@ export const AppLayout = () => {
                   }}
                   title="Rename this conversation"
                   aria-label="Rename this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#9090b0] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer font-medium"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -889,7 +902,7 @@ export const AppLayout = () => {
                   onClick={(e) => handleArchiveConversation(e, activeConvId)}
                   title="Archive this conversation"
                   aria-label="Archive this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#9090b0] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer font-medium"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -907,7 +920,7 @@ export const AppLayout = () => {
                   onClick={(e) => handleDeleteConversation(e, activeConvId)}
                   title="Delete this conversation"
                   aria-label="Delete this conversation"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#a1a1aa] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer font-medium"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -921,6 +934,24 @@ export const AppLayout = () => {
                 </button>
               </>
             )}
+            {/* Theme Mode Quick Toggle */}
+            <button
+              type="button"
+              onClick={() => setMode(resolvedMode === "dark" ? "light" : "dark")}
+              title={resolvedMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Toggle light/dark mode"
+              className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+            >
+              {resolvedMode === "dark" ? (
+                <svg className="w-4 h-4 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              )}
+            </button>
           </div>
         </header>
 

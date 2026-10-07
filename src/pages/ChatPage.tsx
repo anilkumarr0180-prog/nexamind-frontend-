@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, startTransition } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,9 +26,11 @@ import { classifyApiError } from "@/lib/utils/error";
 import { generateConversationTitle } from "@/lib/utils/title";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { NexaMindIcon, AstraGalaxy } from "@/components/ui";
+import { useAudioRecorder, useSpeechSynthesis, formatVoiceDuration, type VoiceModeState } from "@/features/voice";
 import {
   type Message,
   type Conversation,
+  type AgentPlan,
   type ToolStatusEvent,
   type PaginatedResponse,
   type ChatSourceCitation,
@@ -61,12 +63,14 @@ export interface ToolStatusItem {
   tool: string;
   status: "running" | "completed" | "failed";
   error?: string;
+  durationMs?: number;
 }
 
 export interface ConversationStreamState {
   type: "chat" | "agent";
   streamingContent: string;
   agentStatusText?: string;
+  plan?: AgentPlan | null;
   toolStatuses: ToolStatusItem[];
   sources?: ChatSourceCitation[] | null;
 }
@@ -226,6 +230,117 @@ export const ChatPage: React.FC = () => {
   const isNavigatingFromSendRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Voice Mode State (Step 5)
+  const [isVoiceMode, setIsVoiceMode] = useState<boolean>(false);
+  const [voiceModeState, setVoiceModeState] = useState<VoiceModeState>("idle");
+  const [voiceModeError, setVoiceModeError] = useState<string | null>(null);
+  const isVoiceModeRef = useRef<boolean>(false);
+  isVoiceModeRef.current = isVoiceMode;
+  const handleSendMessageRef = useRef<(textToSend?: string, editMessageId?: string) => Promise<void>>(async () => {});
+
+  // Local Voice Recording & Transcription State (Steps 1, 2, 3, 5 & 6)
+  const voiceRecorder = useAudioRecorder({
+    onBeforeStart: () => {
+      // Step 6: When recording starts, immediately cancel any active SpeechSynthesis!
+      speechSynthesizer.stop();
+    },
+    onTranscriptionSuccess: (text) => {
+      if (isVoiceModeRef.current) {
+        setVoiceModeState("thinking");
+        handleSendMessageRef.current(text);
+      } else {
+        setInputValue((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.style.height = "auto";
+            inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 192)}px`;
+          }
+        }, 0);
+      }
+    },
+    onTranscriptionError: (err) => {
+      if (isVoiceModeRef.current) {
+        setVoiceModeState("error");
+        setVoiceModeError(err);
+      }
+    },
+  });
+
+  // Assistant Speech Synthesis (TTS - Step 4, 5 & 6)
+  const speechSynthesizer = useSpeechSynthesis();
+
+  const exitVoiceMode = useCallback(() => {
+    setIsVoiceMode(false);
+    setVoiceModeState("idle");
+    setVoiceModeError(null);
+    voiceRecorder.discardRecording();
+    speechSynthesizer.stop();
+  }, [voiceRecorder, speechSynthesizer]);
+
+  const startVoiceMode = useCallback(async () => {
+    setIsVoiceMode(true);
+    setVoiceModeState("listening");
+    setVoiceModeError(null);
+    speechSynthesizer.stop();
+    await voiceRecorder.startRecording();
+  }, [voiceRecorder, speechSynthesizer]);
+
+  // Step 6: Voice Mode Interruption (barge-in)
+  // While speaking: immediately cancel SpeechSynthesis, transition Speaking -> Listening, start mic recording
+  const handleVoiceInterruption = useCallback(async () => {
+    if (!isVoiceModeRef.current) return;
+
+    // 1. Immediately cancel the active SpeechSynthesis
+    speechSynthesizer.stop();
+
+    // 2. Cleanly transition: Speaking -> Listening
+    setVoiceModeState("listening");
+    setVoiceModeError(null);
+
+    // 3. Prevent overlapping MediaRecorder sessions
+    if (voiceRecorder.state === "recording") {
+      voiceRecorder.discardRecording();
+    }
+
+    // 4. Start microphone recording
+    await voiceRecorder.startRecording();
+  }, [speechSynthesizer, voiceRecorder]);
+
+  // Synchronize Voice Mode state with audio recorder status
+  useEffect(() => {
+    if (isVoiceMode) {
+      if (voiceRecorder.state === "error" && voiceRecorder.error) {
+        setVoiceModeState("error");
+        setVoiceModeError(voiceRecorder.error);
+      } else if (
+        voiceRecorder.state === "recording" ||
+        voiceRecorder.state === "requesting_permission"
+      ) {
+        setVoiceModeState("listening");
+      } else if (
+        voiceRecorder.state === "stopping" ||
+        voiceRecorder.state === "transcribing" ||
+        voiceRecorder.isTranscribing
+      ) {
+        setVoiceModeState("transcribing");
+      }
+    }
+  }, [isVoiceMode, voiceRecorder.state, voiceRecorder.error, voiceRecorder.isTranscribing]);
+
+  // Cleanup Voice Mode and audio sessions strictly on unmount
+  const voiceRecorderDiscardRef = useRef(voiceRecorder.discardRecording);
+  voiceRecorderDiscardRef.current = voiceRecorder.discardRecording;
+  const speechSynthesizerStopRef = useRef(speechSynthesizer.stop);
+  speechSynthesizerStopRef.current = speechSynthesizer.stop;
+
+  useEffect(() => {
+    return () => {
+      voiceRecorderDiscardRef.current();
+      speechSynthesizerStopRef.current();
+    };
+  }, []);
+
   // Retain lastUploadedAttachmentId available across renders for Step 4 integration
   useEffect(() => {
     lastAttachmentIdRef.current = lastUploadedAttachmentId;
@@ -299,7 +414,6 @@ export const ChatPage: React.FC = () => {
   // Reset attachment draft state when conversation changes (unless navigating from message submission)
   useEffect(() => {
     if (isNavigatingFromSendRef.current) {
-      isNavigatingFromSendRef.current = false;
       return;
     }
     if (filePreviewUrlRef.current) {
@@ -455,9 +569,18 @@ export const ChatPage: React.FC = () => {
 
   // Focus input and reset view states when conversation changes
   useEffect(() => {
+    if (isNavigatingFromSendRef.current) {
+      isNavigatingFromSendRef.current = false;
+      return;
+    }
     inputRef.current?.focus();
     setErrorMessage(null);
     setIsSubmitting(false);
+    voiceRecorderDiscardRef.current();
+    speechSynthesizerStopRef.current();
+    setIsVoiceMode(false);
+    setVoiceModeState("idle");
+    setVoiceModeError(null);
     // Restore persistent conversation-level Agent mode (defaults to false for new chats)
     setAgentMode(getStoredAgentMode(conversationId));
     if (inputRef.current) {
@@ -577,6 +700,7 @@ export const ChatPage: React.FC = () => {
 
     // Clear input bar and draft attachment state immediately for zero-lag UI response
     setErrorMessage(null);
+    speechSynthesizer.stop();
     setIsSubmitting(true);
     setInputValue("");
     if (inputRef.current) {
@@ -653,6 +777,7 @@ export const ChatPage: React.FC = () => {
           ? (categoryToUse === "document" ? "Uploading document..." : "Uploading image...")
           : (isAgentRun ? "Working..." : undefined),
         toolStatuses: [],
+        plan: null,
       },
     }));
 
@@ -662,7 +787,9 @@ export const ChatPage: React.FC = () => {
         setStoredAgentMode(targetConvId, true);
       }
       isNavigatingFromSendRef.current = true;
-      navigate(`/app/chat/${targetConvId}`, { replace: true });
+      startTransition(() => {
+        navigate(`/app/chat/${targetConvId}`, { replace: true });
+      });
     }
 
     const abortController = new AbortController();
@@ -805,6 +932,19 @@ export const ChatPage: React.FC = () => {
                 };
               });
             },
+            onPlan: (plan: AgentPlan) => {
+              setStreamingMap((prev) => {
+                const cur = prev[targetConvId];
+                if (!cur) return prev;
+                return {
+                  ...prev,
+                  [targetConvId]: {
+                    ...cur,
+                    plan,
+                  },
+                };
+              });
+            },
             onToolStatus: (event: ToolStatusEvent) => {
               setStreamingMap((prev) => {
                 const cur = prev[targetConvId];
@@ -820,6 +960,7 @@ export const ChatPage: React.FC = () => {
                     tool: event.tool,
                     status: event.status,
                     error: event.error,
+                    durationMs: event.durationMs ?? nextTools[existingIdx]!.durationMs,
                   };
                 } else {
                   nextTools = [
@@ -829,6 +970,7 @@ export const ChatPage: React.FC = () => {
                       tool: event.tool,
                       status: event.status,
                       error: event.error,
+                      durationMs: event.durationMs,
                     },
                   ];
                 }
@@ -840,6 +982,22 @@ export const ChatPage: React.FC = () => {
                   },
                 };
               });
+            },
+            onSources: (sources: ChatSourceCitation[]) => {
+              setStreamingMap((prev) => {
+                const cur = prev[targetConvId];
+                if (!cur) return prev;
+                return {
+                  ...prev,
+                  [targetConvId]: {
+                    ...cur,
+                    sources,
+                  },
+                };
+              });
+            },
+            onTrace: (_trace) => {
+              // Structured execution trace step received
             },
             onChunk: (chunk: string) => {
               setStreamingMap((prev) => {
@@ -855,6 +1013,7 @@ export const ChatPage: React.FC = () => {
               });
             },
             onDone: async () => {
+              const assistantContent = streamingMap[targetConvId]?.streamingContent || "";
               await queryClient.refetchQueries({ queryKey: chatKeys.messages(targetConvId!) });
 
               setOptimisticMessages((prev) =>
@@ -871,6 +1030,19 @@ export const ChatPage: React.FC = () => {
               queryClient.invalidateQueries({ queryKey: conversationKeys.detail(targetConvId!) });
               queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
               queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
+
+              if (isVoiceModeRef.current) {
+                if (assistantContent.trim() && speechSynthesizer.isSupported) {
+                  setVoiceModeState("speaking");
+                  speechSynthesizer.speak(targetConvId, assistantContent, (naturalEnd) => {
+                    if (isVoiceModeRef.current && naturalEnd) {
+                      setVoiceModeState((prev) => (prev === "speaking" ? "idle" : prev));
+                    }
+                  });
+                } else {
+                  setVoiceModeState("idle");
+                }
+              }
             },
             onError: (err) => {
               if (abortController.signal.aborted) return;
@@ -879,6 +1051,10 @@ export const ChatPage: React.FC = () => {
                 "Agent execution failed. Please try again.",
               );
               setErrorMessage(classified.message);
+              if (isVoiceModeRef.current) {
+                setVoiceModeState("error");
+                setVoiceModeError(classified.message);
+              }
               setOptimisticMessages((prev) =>
                 prev.filter((m) => m.conversationId !== targetConvId),
               );
@@ -1085,6 +1261,28 @@ export const ChatPage: React.FC = () => {
               queryClient.invalidateQueries({ queryKey: conversationKeys.detail(targetConvId!) });
               queryClient.invalidateQueries({ queryKey: usageKeys.balance() });
               queryClient.invalidateQueries({ queryKey: memoryKeys.lists() });
+
+              // Voice Mode completion
+              if (isVoiceModeRef.current) {
+                const assistantContent =
+                  result?.assistantMessage?.content ||
+                  streamingMap[targetConvId]?.streamingContent ||
+                  "";
+                const assistantMsgId =
+                  (result?.assistantMessage as any)?._id ||
+                  result?.assistantMessage?.id ||
+                  targetConvId;
+                if (assistantContent.trim() && speechSynthesizer.isSupported) {
+                  setVoiceModeState("speaking");
+                  speechSynthesizer.speak(assistantMsgId, assistantContent, (naturalEnd) => {
+                    if (isVoiceModeRef.current && naturalEnd) {
+                      setVoiceModeState((prev) => (prev === "speaking" ? "idle" : prev));
+                    }
+                  });
+                } else {
+                  setVoiceModeState("idle");
+                }
+              }
             },
             onError: (err) => {
               if (abortController.signal.aborted) return;
@@ -1093,6 +1291,10 @@ export const ChatPage: React.FC = () => {
                 "Failed to generate AI response. Please try again.",
               );
               setErrorMessage(classified.message);
+              if (isVoiceModeRef.current) {
+                setVoiceModeState("error");
+                setVoiceModeError(classified.message);
+              }
               queryClient.invalidateQueries({ queryKey: chatKeys.messages(targetConvId!) }).finally(() => {
                 setOptimisticMessages((prev) =>
                   prev.filter((m) => m.conversationId !== targetConvId),
@@ -1150,13 +1352,18 @@ export const ChatPage: React.FC = () => {
     target.style.height = `${Math.min(target.scrollHeight, 192)}px`;
   };
 
+  useEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  });
+
   const hasMessages =
     activeMessages.length > 0 || visibleOptimisticMessages.length > 0;
 
   return (
-    <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-[#16161a] relative">
-      {/* Subtle ambient lighting mesh */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_800px_500px_at_50%_-80px,rgba(139,92,246,0.07),transparent_70%)]" />
+    <div className="flex h-full flex-col min-h-0 w-full overflow-hidden bg-[#fafafc] dark:bg-[#16161a] relative">
+      {/* Subtle ambient lighting mesh — tailored for Dark & Light */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_800px_500px_at_50%_-80px,rgba(139,92,246,0.07),transparent_70%)] dark:block hidden" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_1000px_700px_at_50%_35%,rgba(56,189,248,0.05),rgba(245,158,11,0.03),rgba(99,102,241,0.035),transparent_75%)] dark:hidden block" />
 
       {/* Astra Cosmic Galaxy Background — only visible on initial visit / empty state */}
       {!hasMessages && !isCurrentConvStreaming && (
@@ -1165,7 +1372,6 @@ export const ChatPage: React.FC = () => {
           hasMessages={false}
           isStreaming={false}
           className="absolute inset-0 w-full h-full z-0 animate-in fade-in duration-500"
-          opacity={0.88}
         />
       )}
 
@@ -1173,46 +1379,52 @@ export const ChatPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto min-h-0 flex flex-col relative z-10">
         {isLoadingMessages && conversationId ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-3">
-            <div className="w-5 h-5 border-2 border-[#a1a1aa]/50 border-t-violet-500/80 rounded-full animate-spin" />
-            <p className="text-sm text-[#8080a0]">Loading conversation...</p>
+            <div className="w-5 h-5 border-2 border-slate-300 dark:border-[#a1a1aa]/50 border-t-violet-500 rounded-full animate-spin" />
+            <p className="text-sm text-slate-500 dark:text-[#8080a0]">Loading conversation...</p>
           </div>
         ) : isMessagesError && conversationId ? (
           <div className="flex-1 flex items-center justify-center p-4">
-            <div className="max-w-md w-full p-4 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs text-center">
+            <div className="max-w-md w-full p-4 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-300 text-xs text-center">
               Failed to load conversation messages. Please try refreshing.
             </div>
           </div>
         ) : !hasMessages && !isCurrentConvStreaming ? (
           /* Clean Empty State */
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-16 space-y-6 my-auto select-none max-w-2xl mx-auto w-full relative z-10">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 sm:px-6 py-8 sm:py-16 space-y-5 sm:space-y-6 my-auto select-none max-w-2xl mx-auto w-full relative z-10">
+            {/* NexaMind Mind Icon Badge */}
             <div className="relative flex items-center justify-center mb-1">
-              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#1e1b4b]/80 via-[#16143c]/80 to-[#0c0b1e]/90 backdrop-blur-md border border-cyan-400/40 flex items-center justify-center shadow-2xl shadow-cyan-950/70 ring-4 ring-cyan-500/20 group transition-all duration-300 hover:scale-105 hover:border-cyan-300">
-                <NexaMindIcon className="w-9 h-9" />
+              <div className="relative flex items-center justify-center">
+                {/* Glow ring in light and dark */}
+                <div className="absolute -inset-2 rounded-3xl bg-gradient-to-r from-violet-500/20 via-indigo-500/20 to-cyan-500/20 blur-xl opacity-70 group-hover:opacity-100 transition duration-500" />
+                <div className="relative h-16 w-16 rounded-2xl bg-white/95 dark:bg-gradient-to-br dark:from-[#1e1b4b]/80 dark:via-[#16143c]/80 dark:to-[#0c0b1e]/90 backdrop-blur-xl border border-slate-200/90 dark:border-cyan-400/40 flex items-center justify-center shadow-[0_10px_25px_-5px_rgba(99,102,241,0.15)] dark:shadow-2xl dark:shadow-cyan-950/70 ring-4 ring-indigo-50 dark:ring-cyan-500/20 group transition-all duration-300 hover:scale-105 hover:border-indigo-400/50 dark:hover:border-cyan-300">
+                  <NexaMindIcon className="w-9 h-9" />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h2 className="text-[28px] sm:text-[34px] font-bold tracking-tight text-white leading-tight drop-shadow-sm">
+            {/* Typography */}
+            <div className="space-y-2.5 max-w-lg">
+              <h2 className="text-2xl sm:text-[34px] md:text-[38px] font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
                 What can I help with today?
               </h2>
-              <p className="text-sm sm:text-[15px] text-[#9090b8] font-normal leading-relaxed">
+              <p className="text-sm sm:text-[15px] text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
                 Ask a question, analyze ideas, or run an autonomous task
               </p>
             </div>
 
             {/* Starter Suggestion Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-lg pt-2">
               {[
-                "Calculate 1542 * 38 using calculator",
-                "Explain quantum computing in simple terms",
-                "Write a clean React hook with TypeScript",
-                "Help me brainstorm creative ideas",
-              ].map((promptText) => (
+                { title: "Calculate 1542 * 38 using calculator", isCalc: true },
+                { title: "Explain quantum computing in simple terms" },
+                { title: "Write a clean React hook with TypeScript" },
+                { title: "Help me brainstorm creative ideas" },
+              ].map(({ title: promptText, isCalc }) => (
                 <button
                   key={promptText}
                   type="button"
                   onClick={() => {
-                    if (promptText.includes("calculator")) {
+                    if (isCalc) {
                       setAgentMode(true);
                       if (conversationId) {
                         setStoredAgentMode(conversationId, true);
@@ -1220,14 +1432,16 @@ export const ChatPage: React.FC = () => {
                     }
                     handleSendMessage(promptText);
                   }}
-                  className="group relative flex items-center justify-between gap-3 text-left p-4 rounded-2xl bg-[#1e1e28]/75 backdrop-blur-md hover:bg-[#24242f]/90 border border-white/[0.08] hover:border-cyan-400/30 shadow-sm hover:shadow-lg hover:shadow-cyan-950/20 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
+                  className="group relative flex items-center justify-between gap-3 text-left p-4 rounded-2xl bg-white/85 dark:bg-[#1e1e28]/75 backdrop-blur-xl hover:bg-white dark:hover:bg-[#24242f]/90 border border-slate-200/90 dark:border-white/[0.08] hover:border-indigo-400/60 dark:hover:border-cyan-400/30 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_24px_-4px_rgba(99,102,241,0.12)] dark:hover:shadow-cyan-950/20 transition-all duration-200 hover:-translate-y-1 active:scale-[0.98] cursor-pointer"
                 >
-                  <span className="text-sm text-[#c8c8e0] group-hover:text-white leading-relaxed font-normal">
+                  <span className="text-sm text-slate-800 dark:text-white group-hover:text-slate-950 dark:group-hover:text-white leading-relaxed font-semibold">
                     {promptText}
                   </span>
-                  <span className="text-sm text-[#6060a0] group-hover:text-cyan-300 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100">
-                    ↗
-                  </span>
+                  <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/[0.06] group-hover:bg-indigo-500/10 dark:group-hover:bg-cyan-400/10 flex items-center justify-center flex-shrink-0 transition-colors">
+                    <span className="text-xs text-slate-600 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-cyan-300 transition-colors font-bold">
+                      ↗
+                    </span>
+                  </div>
                 </button>
               ))}
             </div>
@@ -1235,7 +1449,7 @@ export const ChatPage: React.FC = () => {
 
         ) : (
           /* Natural message stream (~768-800px width like ChatGPT) */
-          <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-7 sm:space-y-8">
+          <div className="w-full max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-5 sm:space-y-8">
             {activeMessages.map((msg) => {
               const isUser = msg.role === "USER";
               const versionInfo = versionMap.get(msg._id);
@@ -1256,14 +1470,14 @@ export const ChatPage: React.FC = () => {
                           }
                         }}
                         rows={Math.max(2, Math.min(8, editInputContent.split("\n").length))}
-                        className="w-full resize-none bg-transparent text-[15px] text-[#f0f0f8] placeholder-[#60608a] focus:outline-none leading-relaxed"
+                        className="w-full resize-none bg-transparent text-[15px] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none leading-relaxed"
                         autoFocus
                       />
                       <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/[0.08]">
                         <button
                           type="button"
                           onClick={handleCancelEdit}
-                          className="px-3 py-1.5 rounded-full text-xs font-medium text-[#a0a0b8] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+                          className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
                         >
                           Cancel
                         </button>
@@ -1392,6 +1606,95 @@ export const ChatPage: React.FC = () => {
                   <div className="flex-1 min-w-0 space-y-1 pt-0.5">
                     <MarkdownMessage content={msg.content} sources={msg.sources} />
                     <MessageSources sources={msg.sources} onSourceClick={handleSourceClick} />
+
+                    {/* Assistant Message Voice Controls (TTS - Step 4) */}
+                    {speechSynthesizer.isSupported && msg.content && (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        {speechSynthesizer.speakingMessageId === msg._id ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs shadow-sm">
+                            {/* Animated sound wave bars */}
+                            <span className="flex items-center gap-0.5 h-3 px-0.5" aria-hidden="true">
+                              <span
+                                className={`w-0.5 bg-violet-400 rounded-full transition-all ${
+                                  speechSynthesizer.speechState === "speaking" ? "h-3 animate-pulse" : "h-1.5"
+                                }`}
+                              />
+                              <span
+                                className={`w-0.5 bg-violet-400 rounded-full transition-all ${
+                                  speechSynthesizer.speechState === "speaking" ? "h-2 animate-pulse delay-75" : "h-2"
+                                }`}
+                              />
+                              <span
+                                className={`w-0.5 bg-violet-400 rounded-full transition-all ${
+                                  speechSynthesizer.speechState === "speaking" ? "h-3 animate-pulse delay-150" : "h-1"
+                                }`}
+                              />
+                            </span>
+
+                            <span className="text-[11px] font-medium text-violet-200">
+                              {speechSynthesizer.speechState === "speaking" ? "Speaking" : "Paused"}
+                            </span>
+
+                            {/* Pause / Resume button */}
+                            {speechSynthesizer.speechState === "speaking" ? (
+                              <button
+                                type="button"
+                                onClick={speechSynthesizer.pause}
+                                title="Pause read aloud"
+                                aria-label="Pause read aloud"
+                                className="p-1 rounded-full hover:bg-violet-500/25 text-violet-300 hover:text-white transition-colors cursor-pointer"
+                              >
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={speechSynthesizer.resume}
+                                title="Resume read aloud"
+                                aria-label="Resume read aloud"
+                                className="p-1 rounded-full hover:bg-violet-500/25 text-violet-300 hover:text-white transition-colors cursor-pointer"
+                              >
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </button>
+                            )}
+
+                            {/* Stop button */}
+                            <button
+                              type="button"
+                              onClick={speechSynthesizer.stop}
+                              title="Stop read aloud"
+                              aria-label="Stop read aloud"
+                              className="p-1 rounded-full hover:bg-rose-500/25 text-rose-300 hover:text-rose-200 transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                <rect x="6" y="6" width="12" height="12" rx="1.5" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => speechSynthesizer.speak(msg._id, msg.content)}
+                            title="Read aloud"
+                            aria-label="Read aloud response"
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-slate-500 dark:text-[#8080a8] hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer active:scale-95"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                              />
+                            </svg>
+                            <span>Read aloud</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1449,54 +1752,100 @@ export const ChatPage: React.FC = () => {
 
                 <div className="flex-1 min-w-0 space-y-2 pt-0.5">
                   {/* Tool Status UI for Agent Execution & Tool Calling */}
-                  {(currentStream.agentStatusText || currentStream.toolStatuses.length > 0) && (
+                  {(currentStream.plan || currentStream.agentStatusText || currentStream.toolStatuses.length > 0) && (
                       <div className="rounded-xl bg-[#1e1e28] border border-white/[0.09] p-3.5 text-xs font-mono select-none space-y-2 shadow-sm max-w-md">
-                        {/* Status line: Working... */}
-                        {currentStream.agentStatusText && !currentStream.toolStatuses.length && (
-                          <div className="flex items-center gap-2 text-[#ececec]">
-                            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                            <span>{currentStream.agentStatusText}</span>
-                          </div>
-                        )}
-
-                        {/* Tool Status Events */}
-                        {currentStream.toolStatuses.map((toolItem) => {
-                          const isFailedWebSearch =
-                            toolItem.status === "failed" &&
-                            toolItem.tool === "web_search";
-                          return (
-                            <div
-                              key={toolItem.id}
-                              className="flex items-center gap-2"
-                              title={
-                                isFailedWebSearch
-                                  ? "Real-time web search was unavailable; answering from available knowledge."
-                                  : undefined
-                              }
-                            >
-                              {toolItem.status === "running" ? (
-                                <>
-                                  <span className="text-amber-400">🔧</span>
-                                  <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
-                                  <span className="text-[#8e8e8e]">— running</span>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping ml-0.5" />
-                                </>
-                              ) : toolItem.status === "completed" ? (
-                                <>
-                                  <span className="text-emerald-400 font-bold">✓</span>
-                                  <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
-                                  <span className="text-[#8e8e8e]">— completed</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="text-rose-400 font-bold">✕</span>
-                                  <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
-                                  <span className="text-rose-400/80">— failed</span>
-                                </>
-                              )}
+                        {/* Plan preview with step status icons */}
+                        {currentStream.plan && currentStream.plan.steps.length > 0 ? (
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] font-semibold tracking-wider uppercase text-neutral-400">
+                              Plan
                             </div>
-                          );
-                        })}
+                            {currentStream.plan.steps.map((step, idx) => (
+                              <div key={step.id || idx} className="flex items-center gap-2 text-xs">
+                                {step.status === "completed" ? (
+                                  <span className="text-emerald-400 font-bold">✓</span>
+                                ) : step.status === "running" ? (
+                                  <span className="text-amber-400 font-bold animate-pulse">●</span>
+                                ) : step.status === "failed" ? (
+                                  <span className="text-rose-400 font-bold">✕</span>
+                                ) : (
+                                  <span className="text-neutral-500">○</span>
+                                )}
+                                <span
+                                  className={
+                                    step.status === "completed"
+                                      ? "text-neutral-300"
+                                      : step.status === "running"
+                                      ? "text-white font-medium"
+                                      : step.status === "failed"
+                                      ? "text-rose-300"
+                                      : "text-neutral-400"
+                                  }
+                                >
+                                  {idx + 1}. {step.title}
+                                </span>
+                                {step.error && (
+                                  <span className="text-rose-400/80 text-[10px]" title={step.error}>
+                                    ({step.error})
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <>
+                            {/* Fallback status line: Working... */}
+                            {currentStream.agentStatusText && !currentStream.toolStatuses.length && (
+                              <div className="flex items-center gap-2 text-[#ececec]">
+                                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                                <span>{currentStream.agentStatusText}</span>
+                              </div>
+                            )}
+
+                            {/* Fallback tool status events */}
+                            {currentStream.toolStatuses.map((toolItem) => {
+                              const isFailedWebSearch =
+                                toolItem.status === "failed" &&
+                                toolItem.tool === "web_search";
+                              return (
+                                <div
+                                  key={toolItem.id}
+                                  className="flex items-center gap-2"
+                                  title={
+                                    isFailedWebSearch
+                                      ? "Real-time web search was unavailable; answering from available knowledge."
+                                      : undefined
+                                  }
+                                >
+                                  {toolItem.status === "running" ? (
+                                    <>
+                                      <span className="text-amber-400">🔧</span>
+                                      <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
+                                      <span className="text-[#8e8e8e]">— running</span>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping ml-0.5" />
+                                    </>
+                                  ) : toolItem.status === "completed" ? (
+                                    <>
+                                      <span className="text-emerald-400 font-bold">✓</span>
+                                      <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
+                                      <span className="text-[#8e8e8e]">
+                                        — completed{typeof toolItem.durationMs === "number" && toolItem.durationMs > 0 ? ` (${toolItem.durationMs}ms)` : ""}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-rose-400 font-bold">✕</span>
+                                      <span className="text-[#ececec] font-medium">{toolItem.tool}</span>
+                                      <span className="text-rose-400/80" title={toolItem.error}>
+                                        — failed{toolItem.error ? `: ${toolItem.error}` : ""}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
 
                         {/* Status line: Generating response... */}
                         {currentStream.agentStatusText === "Generating response..." && (
@@ -1590,8 +1939,8 @@ export const ChatPage: React.FC = () => {
       )}
 
       {/* Prominent Bottom Chat Composer */}
-      <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-5 sm:pb-7 pt-2 flex-shrink-0 relative z-10">
-        <div className="relative rounded-[26px] bg-[#1d1d25]/98 border border-white/[0.14] focus-within:border-violet-500/40 focus-within:ring-1 focus-within:ring-violet-500/20 shadow-xl shadow-black/50 backdrop-blur-md transition-all duration-200 p-2 sm:p-2.5">
+      <div className="w-full max-w-3xl mx-auto px-3 sm:px-6 pb-3 sm:pb-7 pt-1 sm:pt-2 flex-shrink-0 relative z-10">
+        <div className="chat-composer-box relative rounded-[26px] bg-white dark:bg-[#1d1d25] border border-slate-200/90 dark:border-white/[0.14] focus-within:border-indigo-500/50 dark:focus-within:border-violet-500/40 focus-within:ring-2 focus-within:ring-indigo-500/15 dark:focus-within:ring-violet-500/20 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.07)] dark:shadow-xl dark:shadow-black/50 backdrop-blur-xl transition-all duration-200 p-2 sm:p-2.5">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -1601,9 +1950,9 @@ export const ChatPage: React.FC = () => {
           >
             {/* Local Attachment Preview (Image or Document) */}
             {selectedFile && (
-              <div className="relative mx-1.5 mb-1 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center gap-3 animate-in fade-in zoom-in-95 duration-150">
+              <div className="relative mx-1.5 mb-1 p-2.5 rounded-xl bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] flex items-center gap-3 animate-in fade-in zoom-in-95 duration-150">
                 {fileCategory === "image" && filePreviewUrl ? (
-                  <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-black/40 border border-white/[0.08]">
+                  <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-slate-200 dark:bg-black/40 border border-slate-300 dark:border-white/[0.08]">
                     <img
                       src={filePreviewUrl}
                       alt={selectedFile.name}
@@ -1619,18 +1968,18 @@ export const ChatPage: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="relative w-12 h-12 rounded-lg bg-gradient-to-br from-violet-600/30 to-indigo-600/20 border border-violet-500/30 flex flex-col items-center justify-center flex-shrink-0">
+                  <div className="relative w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/15 to-violet-500/20 dark:from-violet-600/30 dark:to-indigo-600/20 border border-indigo-200/60 dark:border-violet-500/30 flex flex-col items-center justify-center flex-shrink-0">
                     {isUploadingAttachment ? (
-                      <svg className="animate-spin h-5 w-5 text-violet-300" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-5 w-5 text-indigo-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
                     ) : (
                       <>
-                        <svg className="w-5 h-5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5 text-indigo-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span className="text-[9px] font-bold text-violet-200 mt-0.5 uppercase tracking-wider">
+                        <span className="text-[9px] font-bold text-indigo-600 dark:text-violet-200 mt-0.5 uppercase tracking-wider">
                           {selectedFile.name.split(".").pop() || "doc"}
                         </span>
                       </>
@@ -1639,11 +1988,11 @@ export const ChatPage: React.FC = () => {
                 )}
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-[#e0e0f0] truncate">
+                  <p className="text-xs font-medium text-slate-800 dark:text-[#e0e0f0] truncate">
                     {selectedFile.name}
                   </p>
-                  <p className="text-[11px] text-[#707090] mt-0.5">
-                    <span className="uppercase font-semibold text-white/50">
+                  <p className="text-[11px] text-slate-500 dark:text-[#707090] mt-0.5">
+                    <span className="uppercase font-semibold text-slate-400 dark:text-white/50">
                       {selectedFile.name.split(".").pop() || "file"}
                     </span>
                     {" • "}
@@ -1653,9 +2002,9 @@ export const ChatPage: React.FC = () => {
                     {isUploadingAttachment && typeof uploadProgress === "number" && ` • Uploading ${uploadProgress}%`}
                   </p>
                   {isUploadingAttachment && typeof uploadProgress === "number" && (
-                    <div className="w-full bg-white/[0.1] h-1 rounded-full mt-1.5 overflow-hidden">
+                    <div className="w-full bg-slate-200 dark:bg-white/[0.1] h-1 rounded-full mt-1.5 overflow-hidden">
                       <div
-                        className="bg-violet-500 h-full rounded-full transition-all duration-150"
+                        className="bg-indigo-600 dark:bg-violet-500 h-full rounded-full transition-all duration-150"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
@@ -1668,7 +2017,7 @@ export const ChatPage: React.FC = () => {
                     onClick={handleRemoveAttachment}
                     title="Remove attachment"
                     aria-label="Remove attachment"
-                    className="h-6 w-6 rounded-full bg-white/[0.08] hover:bg-white/[0.16] text-[#a0a0c0] hover:text-white flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                    className="h-6 w-6 rounded-full bg-slate-200/80 hover:bg-slate-300 dark:bg-white/[0.08] dark:hover:bg-white/[0.16] text-slate-500 hover:text-slate-800 dark:text-[#a0a0c0] dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1678,92 +2027,537 @@ export const ChatPage: React.FC = () => {
               </div>
             )}
 
-            {/* Input Row */}
-            <div className="flex items-end gap-2">
-              {/* Attachment Input & Button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,text/plain,.txt,text/markdown,.md,application/json,.json,text/csv,.csv,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
-                className="hidden"
-                onChange={handleFileSelect}
-                disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
-              />
-              <button
-                type="button"
-                onClick={handleAttachmentClick}
-                disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
-                title="Attach file (Images up to 10MB, DOCX, PDF, TXT, MD, JSON, CSV up to 5MB)"
-                aria-label="Attach file"
-                className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-[#8080a8] hover:text-white hover:bg-white/[0.08] transition-all mb-0.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+            {/* Local Audio Recording Preview & Transcription (Step 2) */}
+            {voiceRecorder.recording && (
+              <div className="relative mx-1.5 mb-1 p-2.5 rounded-xl bg-slate-100/90 dark:bg-white/[0.04] border border-slate-200/90 dark:border-white/[0.08] flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center gap-2.5 sm:gap-3 w-full">
+                  <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/15 to-violet-500/20 dark:from-rose-500/25 dark:to-violet-600/30 border border-rose-300/50 dark:border-rose-400/30 flex items-center justify-center flex-shrink-0 text-rose-500 dark:text-rose-400">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-800 dark:text-[#e0e0f0]">
+                        Voice Recording
+                      </span>
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-200/80 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                        Local audio
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-[#707090] mt-0.5">
+                      <span>{formatVoiceDuration(voiceRecorder.recording.durationSeconds)}</span>
+                      {" • "}
+                      <span>{(voiceRecorder.recording.sizeBytes / 1024).toFixed(1)} KB</span>
+                    </p>
+                  </div>
+
+                  <audio
+                    src={voiceRecorder.recording.url}
+                    controls
+                    className="h-7 max-w-[140px] sm:max-w-[200px]"
                   />
-                </svg>
-              </button>
 
-              <textarea
-                ref={inputRef}
-                rows={1}
-                value={inputValue}
-                onChange={handleTextareaInput}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  isArchived
-                    ? "Conversation is archived"
-                    : isUploadingAttachment
-                      ? `Uploading ${fileCategory === "document" ? "document" : "image"}...`
-                      : agentMode
-                        ? "Assign an agent task (e.g. calculate 45 * 82)..."
-                        : "Message NexaMind..."
-                }
-                disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
-                className="flex-1 max-h-48 min-h-[40px] resize-none bg-transparent px-3.5 py-2 text-[15px] text-[#e8e8f0] placeholder-[#60608a] focus:outline-none disabled:opacity-50 leading-relaxed"
-              />
+                  {/* Transcribe / Retry Button */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await voiceRecorder.transcribeRecording();
+                    }}
+                    disabled={voiceRecorder.isTranscribing}
+                    title="Transcribe speech to text using Groq Whisper"
+                    aria-label="Transcribe audio"
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
+                  >
+                    {voiceRecorder.isTranscribing ? (
+                      <>
+                        <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <span>Transcribing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Retry</span>
+                      </>
+                    )}
+                  </button>
 
-              {isCurrentConvStreaming ? (
+                  <button
+                    type="button"
+                    onClick={voiceRecorder.discardRecording}
+                    title="Discard recording"
+                    aria-label="Discard recording"
+                    className="h-6 w-6 rounded-full bg-slate-200/80 hover:bg-slate-300 dark:bg-white/[0.08] dark:hover:bg-white/[0.16] text-slate-500 hover:text-rose-600 dark:text-[#a0a0c0] dark:hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Transcribed Text Preview */}
+                {voiceRecorder.transcriptionText && (
+                  <div className="w-full pt-2 border-t border-slate-200/70 dark:border-white/[0.08] flex items-start justify-between gap-3 animate-in fade-in">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-violet-400">
+                        Transcript:
+                      </span>
+                      <p className="text-xs text-slate-700 dark:text-slate-200 mt-0.5 line-clamp-2">
+                        {voiceRecorder.transcriptionText}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInputValue((prev) =>
+                          prev.trim() ? `${prev.trim()} ${voiceRecorder.transcriptionText}` : voiceRecorder.transcriptionText!
+                        );
+                        inputRef.current?.focus();
+                      }}
+                      title="Insert transcript into message input"
+                      className="text-[11px] font-medium text-indigo-600 dark:text-violet-300 hover:underline flex-shrink-0 cursor-pointer pt-0.5"
+                    >
+                      Insert into input
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Voice Recording Error Banner */}
+            {voiceRecorder.error && (
+              <div className="mx-1.5 mb-1 px-3 py-1.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="truncate">{voiceRecorder.error}</span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => handleStopGenerating(conversationId)}
-                  aria-label={currentStream?.type === "agent" ? "Stop Agent" : "Stop generating"}
-                  className="flex-shrink-0 h-8 w-8 rounded-full bg-white text-black hover:bg-neutral-200 flex items-center justify-center transition-all mb-0.5 cursor-pointer shadow-sm active:scale-95"
-                  title={currentStream?.type === "agent" ? "Stop Agent" : "Stop generating"}
+                  onClick={voiceRecorder.clearError}
+                  className="text-amber-600 dark:text-amber-300 hover:text-amber-800 dark:hover:text-white ml-2 text-xs cursor-pointer font-bold flex-shrink-0"
+                  aria-label="Dismiss error"
                 >
-                  <span className="w-2.5 h-2.5 rounded-[2px] bg-black" />
+                  ✕
                 </button>
+              </div>
+            )}
+
+            {/* Input Row */}
+            <div className="flex items-end gap-2">
+              {isVoiceMode ? (
+                /* Voice Mode Interactive Panel (Step 5) */
+                <div className="flex-1 min-h-[48px] flex items-center justify-between px-3.5 py-2 rounded-2xl bg-gradient-to-r from-violet-950/30 via-slate-900/40 to-violet-950/30 dark:from-[#1b1736] dark:via-[#141228] dark:to-[#10101c] border border-violet-500/30 shadow-md shadow-violet-950/20 animate-in fade-in">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {voiceModeState === "listening" ? (
+                      <>
+                        <div className="relative flex items-center justify-center flex-shrink-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping absolute" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-rose-500 dark:text-rose-400">Listening...</span>
+                            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-slate-800 dark:text-slate-200">
+                              {formatVoiceDuration(voiceRecorder.durationSeconds)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Speak your message</p>
+                        </div>
+                      </>
+                    ) : voiceModeState === "transcribing" ? (
+                      <>
+                        <svg className="animate-spin h-3.5 w-3.5 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-indigo-400">Transcribing...</span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Converting speech to text</p>
+                        </div>
+                      </>
+                    ) : voiceModeState === "thinking" ? (
+                      <>
+                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 flex-shrink-0 animate-pulse">
+                          <span className="text-[10px] font-bold">⚡</span>
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-violet-300">
+                            {currentStream?.agentStatusText || "Thinking..."}
+                          </span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Generating answer</p>
+                        </div>
+                      </>
+                    ) : voiceModeState === "speaking" ? (
+                      <div
+                        onClick={handleVoiceInterruption}
+                        role="button"
+                        tabIndex={0}
+                        title="Click or tap to interrupt and speak"
+                        className="flex items-center gap-2.5 min-w-0 cursor-pointer group select-none py-0.5 -my-0.5 rounded-lg hover:opacity-90 transition-opacity"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleVoiceInterruption();
+                          }
+                        }}
+                      >
+                        <span className="flex items-center gap-0.5 h-3.5 px-0.5" aria-hidden="true">
+                          <span className="w-0.5 bg-emerald-400 rounded-full h-3.5 animate-pulse" />
+                          <span className="w-0.5 bg-emerald-400 rounded-full h-2 animate-pulse delay-75" />
+                          <span className="w-0.5 bg-emerald-400 rounded-full h-3 animate-pulse delay-150" />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-emerald-400">Speaking...</span>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-400 group-hover:text-rose-400 dark:group-hover:text-rose-300 font-semibold transition-colors flex items-center gap-0.5">
+                              <span>🎙</span>
+                              <span>Tap to interrupt</span>
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Reading AI response</p>
+                        </div>
+                      </div>
+                    ) : voiceModeState === "error" ? (
+                      <>
+                        <span className="text-amber-400 text-xs flex-shrink-0">⚠️</span>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-amber-400">Voice Error</span>
+                          <p className="text-[11px] text-amber-300/80 truncate max-w-[200px] sm:max-w-xs">
+                            {voiceModeError || "Operation failed"}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 flex-shrink-0">
+                          <span className="text-[10px] font-bold">🎙</span>
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Voice Mode Ready</span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Tap to speak again</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    {voiceModeState === "listening" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={exitVoiceMode}
+                          className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={voiceRecorder.stopRecording}
+                          className="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                        >
+                          <span className="w-2 h-2 rounded-sm bg-white" />
+                          <span>Done</span>
+                        </button>
+                      </>
+                    ) : voiceModeState === "transcribing" ? (
+                      <button
+                        type="button"
+                        onClick={exitVoiceMode}
+                        className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    ) : voiceModeState === "thinking" ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleStopGenerating(conversationId);
+                          setVoiceModeState("idle");
+                        }}
+                        className="px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 dark:bg-white/10 dark:hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Stop
+                      </button>
+                    ) : voiceModeState === "speaking" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleVoiceInterruption}
+                          title="Interrupt and speak"
+                          aria-label="Interrupt response and speak"
+                          className="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                          <span>Interrupt</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            speechSynthesizer.stop();
+                            setVoiceModeState("idle");
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+                          title="Stop speaking"
+                        >
+                          Stop
+                        </button>
+                        <button
+                          type="button"
+                          onClick={exitVoiceMode}
+                          className="px-2 py-1 text-xs text-slate-500 hover:text-white font-medium transition-colors cursor-pointer"
+                          title="Exit Voice Mode"
+                        >
+                          Exit
+                        </button>
+                      </>
+                    ) : voiceModeState === "error" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={startVoiceMode}
+                          className="px-2.5 py-1 rounded-full bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+                        >
+                          Retry
+                        </button>
+                        <button
+                          type="button"
+                          onClick={exitVoiceMode}
+                          className="px-2 py-1 text-xs text-slate-500 hover:text-white font-medium transition-colors cursor-pointer"
+                        >
+                          Exit
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={startVoiceMode}
+                          className="px-3 py-1 rounded-full bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer active:scale-95"
+                        >
+                          <span>🎙</span>
+                          <span>Speak</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={exitVoiceMode}
+                          className="px-2 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                        >
+                          Exit
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               ) : (
-                <button
-                  type="submit"
-                  disabled={
-                    isSubmitting ||
-                    isUploadingAttachment ||
-                    isCurrentConvStreaming ||
-                    isArchived ||
-                    (!inputValue.trim() && !selectedFile)
-                  }
-                  aria-label="Send message"
-                  className="flex-shrink-0 h-8 w-8 rounded-full bg-white text-black hover:bg-neutral-200 disabled:bg-[#323236] disabled:text-[#71717a] flex items-center justify-center transition-all mb-0.5 cursor-pointer disabled:cursor-not-allowed active:scale-95"
-                >
-                  {isSubmitting || isUploadingAttachment ? (
-                    <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                <>
+                  {/* Attachment Input & Button */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,text/plain,.txt,text/markdown,.md,application/json,.json,text/csv,.csv,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                    disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived || voiceRecorder.state === "recording" || voiceRecorder.state === "stopping" || voiceRecorder.isTranscribing}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAttachmentClick}
+                    disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived || voiceRecorder.state === "recording" || voiceRecorder.state === "stopping" || voiceRecorder.isTranscribing}
+                    title="Attach file (Images up to 10MB, DOCX, PDF, TXT, MD, JSON, CSV up to 5MB)"
+                    aria-label="Attach file"
+                    className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8080a8] dark:hover:text-white dark:hover:bg-white/[0.08] transition-all mb-0.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                      />
                     </svg>
+                  </button>
+
+                  {/* Textarea or Active Recording / Transcribing Bar */}
+                  {voiceRecorder.state === "recording" ? (
+                    <div className="flex-1 min-h-[40px] flex items-center justify-between px-3.5 py-1.5 bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/30 rounded-2xl animate-in fade-in">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex items-center justify-center">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping absolute" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                        </div>
+                        <span className="text-xs font-semibold text-rose-600 dark:text-rose-300">
+                          Recording
+                        </span>
+                        <span className="font-mono text-xs font-bold text-slate-800 dark:text-white px-2 py-0.5 rounded bg-black/5 dark:bg-white/10">
+                          {formatVoiceDuration(voiceRecorder.durationSeconds)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={voiceRecorder.discardRecording}
+                          title="Discard recording"
+                          aria-label="Discard recording"
+                          className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={voiceRecorder.stopRecording}
+                          title="Stop recording"
+                          aria-label="Stop recording"
+                          className="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                        >
+                          <span className="w-2 h-2 rounded-sm bg-white" />
+                          <span>Stop</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : voiceRecorder.state === "stopping" || voiceRecorder.state === "transcribing" || voiceRecorder.isTranscribing ? (
+                    <div className="flex-1 min-h-[40px] flex items-center justify-between px-3.5 py-1.5 bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/30 rounded-2xl animate-in fade-in">
+                      <div className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                        <svg className="animate-spin h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <span>
+                          {voiceRecorder.state === "stopping"
+                            ? "Processing audio recording..."
+                            : "Transcribing speech to text..."}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={voiceRecorder.discardRecording}
+                        title="Cancel transcription"
+                        aria-label="Cancel transcription"
+                        className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.6}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                    </svg>
+                    <textarea
+                      ref={inputRef}
+                      rows={1}
+                      value={inputValue}
+                      onChange={handleTextareaInput}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        isArchived
+                          ? "Conversation is archived"
+                          : isUploadingAttachment
+                            ? `Uploading ${fileCategory === "document" ? "document" : "image"}...`
+                            : agentMode
+                              ? "Assign an agent task (e.g. calculate 45 * 82)..."
+                              : "Message NexaMind..."
+                      }
+                      disabled={isSubmitting || isUploadingAttachment || isCurrentConvStreaming || isArchived}
+                      className="flex-1 max-h-48 min-h-[40px] resize-none bg-transparent px-3.5 py-2 text-[15px] text-black dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none disabled:opacity-50 leading-relaxed font-normal"
+                    />
                   )}
-                </button>
+
+                  {/* Microphone Recording Button */}
+                  {voiceRecorder.state !== "recording" && voiceRecorder.state !== "stopping" && !voiceRecorder.isTranscribing && (
+                    <button
+                      type="button"
+                      onClick={voiceRecorder.startRecording}
+                      disabled={
+                        isSubmitting ||
+                        isUploadingAttachment ||
+                        isCurrentConvStreaming ||
+                        isArchived ||
+                        voiceRecorder.isTranscribing ||
+                        !voiceRecorder.isSupported
+                      }
+                      title={
+                        !voiceRecorder.isSupported
+                          ? "Microphone recording is not supported in this browser"
+                          : voiceRecorder.state === "requesting_permission"
+                          ? "Requesting microphone permission..."
+                          : "Record voice message"
+                      }
+                      aria-label="Record voice message"
+                      className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-all mb-0.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 ${
+                        voiceRecorder.state === "requesting_permission"
+                          ? "text-amber-500 bg-amber-500/10 animate-pulse"
+                          : "text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8080a8] dark:hover:text-white dark:hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      {voiceRecorder.state === "requesting_permission" ? (
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Send or Stop Generation Button */}
+                  {isCurrentConvStreaming ? (
+                    <button
+                      type="button"
+                      onClick={() => handleStopGenerating(conversationId)}
+                      aria-label={currentStream?.type === "agent" ? "Stop Agent" : "Stop generating"}
+                      className="flex-shrink-0 h-8 w-8 rounded-full bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 flex items-center justify-center transition-all mb-0.5 cursor-pointer shadow-sm active:scale-95"
+                      title={currentStream?.type === "agent" ? "Stop Agent" : "Stop generating"}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-[2px] bg-white dark:bg-black" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={
+                        isSubmitting ||
+                        isUploadingAttachment ||
+                        isCurrentConvStreaming ||
+                        isArchived ||
+                        voiceRecorder.state === "recording" ||
+                        voiceRecorder.state === "stopping" ||
+                        voiceRecorder.isTranscribing ||
+                        (!inputValue.trim() && !selectedFile)
+                      }
+                      aria-label="Send message"
+                      className="flex-shrink-0 h-8 w-8 rounded-full bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 dark:bg-white dark:text-black dark:hover:bg-neutral-200 dark:disabled:bg-[#323236] dark:disabled:text-[#71717a] flex items-center justify-center transition-all mb-0.5 cursor-pointer disabled:cursor-not-allowed active:scale-95 shadow-sm"
+                    >
+                      {isSubmitting || isUploadingAttachment ? (
+                        <svg className="animate-spin h-3.5 w-3.5 text-white dark:text-black" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.6}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
-            {/* Mode Toolbar: Agent Mode Toggle */}
-            <div className="flex items-center justify-between px-2 pt-1.5 border-t border-white/[0.06]">
+            {/* Mode Toolbar: Agent Mode & Voice Mode Toggles */}
+            <div className="flex items-center justify-between px-2 pt-1.5 border-t border-slate-100 dark:border-white/[0.06]">
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -1778,24 +2572,53 @@ export const ChatPage: React.FC = () => {
                   }}
                   disabled={isCurrentConvStreaming || isArchived}
                   title={agentMode ? "Switch to standard Chat" : "Switch to Agent Mode (with tools)"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
                     agentMode
-                      ? "bg-violet-500/20 text-violet-300 border border-violet-500/35 shadow-sm shadow-violet-900/20"
-                      : "bg-white/[0.05] text-[#8080a8] border border-white/[0.08] hover:text-white hover:bg-white/[0.09]"
+                      ? "bg-indigo-50 dark:bg-violet-500/25 text-indigo-700 dark:text-violet-200 border border-indigo-200/80 dark:border-violet-400/40 shadow-sm shadow-indigo-500/10 font-bold"
+                      : "bg-slate-100/90 dark:bg-white/[0.08] text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.12] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.12]"
                   }`}
                 >
                   <span className="text-xs">{agentMode ? "⚡" : "⚙"}</span>
                   <span>Agent {agentMode ? "On" : "Off"}</span>
                 </button>
+
+                {/* Voice Mode Toggle Button (Step 5) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isVoiceMode) {
+                      exitVoiceMode();
+                    } else {
+                      startVoiceMode();
+                    }
+                  }}
+                  disabled={isCurrentConvStreaming || isArchived}
+                  title={isVoiceMode ? "Exit Voice Mode" : "Start Voice Mode"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
+                    isVoiceMode
+                      ? "bg-rose-50 dark:bg-rose-500/25 text-rose-700 dark:text-rose-200 border border-rose-300 dark:border-rose-400/40 shadow-sm shadow-rose-500/15 font-bold"
+                      : "bg-slate-100/90 dark:bg-white/[0.08] text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.12] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.12]"
+                  }`}
+                >
+                  <span className="text-xs">{isVoiceMode ? "🔴" : "🎙"}</span>
+                  <span>Voice Mode {isVoiceMode ? "On" : "Off"}</span>
+                </button>
               </div>
 
-              <span className="text-xs text-[#60608a] select-none">
-                {agentMode ? "Autonomous tool execution enabled" : "1 credit per query"}
+              <span className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-200 select-none font-semibold truncate ml-2">
+                {agentMode ? (
+                  <>
+                    <span className="hidden sm:inline">Autonomous tool execution enabled</span>
+                    <span className="sm:hidden">Autonomous tools</span>
+                  </>
+                ) : (
+                  "1 credit per query"
+                )}
               </span>
             </div>
           </form>
         </div>
-        <p className="text-[11px] text-center text-[#50506a] mt-2 select-none">
+        <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 mt-2 select-none font-medium">
           NexaMind can make mistakes. Verify important info.
         </p>
       </div>

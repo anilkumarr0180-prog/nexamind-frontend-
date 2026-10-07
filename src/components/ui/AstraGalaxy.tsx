@@ -1,7 +1,12 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { useTheme } from "@/features/theme";
 
 export interface NexusRibbonProps {
+  /**
+   * Optional explicit theme override ('light' | 'dark'). Defaults to active app theme.
+   */
+  theme?: "light" | "dark";
   /**
    * Mode:
    * - 'auto': ribbon when idle/empty, smoothly disperses/fades when messages present
@@ -43,17 +48,24 @@ export interface NexusRibbonProps {
  * - Central Luminous Cognitive Synapse Spark (The "Mind" core from the Nexa logo)
  * - NexaMind chromatic gradient: Electric Cyan -> Radiant Violet -> Royal Indigo -> Amber Spark
  * - GPU-driven streaming flow and 3D pointer parallax
+ * - Theme-Aware: Luminous additive photonic glow in Dark mode, rich translucent jewel-tone silk in Light mode
  */
 export const NexusRibbon: React.FC<NexusRibbonProps> = ({
+  theme,
   mode = "auto",
   isStreaming = false,
   hasMessages = false,
-  opacity = 0.92,
+  opacity,
   interactive = true,
   className = "",
   particleDensity = "high",
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const { resolvedMode } = useTheme();
+  const currentTheme = theme || resolvedMode || "dark";
+  const isLight = currentTheme === "light";
+  const defaultOpacity = isLight ? 0.88 : 0.92;
+  const effectiveOpacity = opacity !== undefined ? opacity : defaultOpacity;
 
   const stateRef = useRef({
     targetMorph: 0.0,
@@ -85,9 +97,10 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
     const container = mountRef.current;
     if (!container) return;
 
-    let particleCount = 22000;
-    if (particleDensity === "normal") particleCount = 14000;
-    if (particleDensity === "cinematic") particleCount = 32000;
+    const isMobile = (typeof window !== "undefined" && window.innerWidth < 768) || container.clientWidth < 768;
+    let particleCount = isMobile ? (isLight ? 8500 : 9000) : (isLight ? 21000 : 22000);
+    if (particleDensity === "normal") particleCount = isMobile ? 5500 : 14000;
+    if (particleDensity === "cinematic") particleCount = isMobile ? 12000 : (isLight ? 30000 : 32000);
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -101,7 +114,7 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
       return;
     }
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
     renderer.setPixelRatio(dpr);
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x000000, 0);
@@ -126,27 +139,27 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
     const ribbonData = new Float32Array(particleCount * 3); // [u0, lateralOffset, speedRate]
     const twinkles = new Float32Array(particleCount * 2);
 
-    // NexaMind Brand Palette
-    const cCyan = new THREE.Color("#38bdf8"); // Electric Cyan
-    const cBlue = new THREE.Color("#60a5fa"); // Quantum Blue
-    const cViolet = new THREE.Color("#a855f7"); // Radiant Violet
-    const cIndigo = new THREE.Color("#4f46e5"); // Royal Indigo
-    const cAmber = new THREE.Color("#f59e0b"); // Cognitive Synapse Spark
-    const cGold = new THREE.Color("#fbbf24"); // Amber Gold
-    const cWhite = new THREE.Color("#ffffff"); // Luminous Highlight
+    // NexaMind Brand Palette (Theme-Adaptive)
+    // Dark mode: electric liquid neon (cyan, violet, gold, white)
+    // Light mode: multi-chromatic celestial stars (ocean cyan, cosmic sapphire, royal amethyst, starlight amber gold, obsidian diamond)
+    const cCyan = isLight ? new THREE.Color("#0284c7") : new THREE.Color("#38bdf8"); // Ocean Azure / Electric Cyan
+    const cBlue = isLight ? new THREE.Color("#1d4ed8") : new THREE.Color("#60a5fa"); // Cosmic Sapphire / Quantum Blue
+    const cViolet = isLight ? new THREE.Color("#7c3aed") : new THREE.Color("#a855f7"); // Royal Amethyst
+    const cIndigo = isLight ? new THREE.Color("#312e81") : new THREE.Color("#4f46e5"); // Deep Celestial Navy
+    const cAmber = isLight ? new THREE.Color("#d97706") : new THREE.Color("#f59e0b"); // Warm Starlight Amber
+    const cGold = isLight ? new THREE.Color("#b45309") : new THREE.Color("#fbbf24"); // Celestial Sunstone / Gold
+    const cDiamond = isLight ? new THREE.Color("#0f172a") : new THREE.Color("#ffffff"); // High-contrast Diamond Core / White Star
 
     // Particle distribution:
-    // ~75% streaming on the 3D Nexus Ribbon
-    // ~12% concentrated in the central Cognitive Synapse Spark
-    // ~13% ambient floating quantum stardust
-    const numRibbon = Math.floor(particleCount * 0.75);
-    const numSynapse = Math.floor(particleCount * 0.12);
+    // 74% ribbon, 11% synapse, 15% ambient cosmic stardust in BOTH light and dark modes
+    const numRibbon = Math.floor(particleCount * 0.74);
+    const numSynapse = Math.floor(particleCount * 0.11);
 
     // Parametric scale for the 3D Nexus Ribbon
     const scaleX = 2.45;
     const scaleY = 1.35;
     const scaleZ = 1.05;
-    const ribbonWidth = 0.32;
+    const ribbonWidth = isLight ? 0.30 : 0.32;
 
     for (let i = 0; i < particleCount; i++) {
       const i3 = i * 3;
@@ -201,7 +214,7 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
         y = spineY + (ny * cosTwist + by * sinTwist) * lateralSpread;
         z = spineZ + (nz * cosTwist + bz * sinTwist) * lateralSpread;
 
-        // Chromatic flow along the ribbon (Cyan -> Blue -> Violet -> Indigo -> Cyan)
+        // Chromatic flow along the ribbon (Cyan -> Sapphire -> Amethyst -> Indigo -> Cyan)
         if (u0 < 0.25) {
           pColor.lerpColors(cCyan, cBlue, u0 / 0.25);
         } else if (u0 < 0.55) {
@@ -212,16 +225,24 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
           pColor.lerpColors(cIndigo, cCyan, (u0 - 0.82) / 0.18);
         }
 
-        // ~12% are amber/gold starlight surges streaming through
-        if (Math.random() < 0.12) {
+        // Surges of vibrant luminous tint: Warm Gold / Amber / Diamond stars
+        const randType = Math.random();
+        if (randType < 0.16) {
+          // Sparkling Warm Amber & Celestial Gold Stars
           pColor.lerpColors(cAmber, cGold, Math.random());
-          pSize = 1.8 + Math.random() * 1.6;
+          pSize = isLight ? 1.4 + Math.random() * 0.9 : 1.8 + Math.random() * 1.6;
+        } else if (isLight && randType < 0.25) {
+          // High-contrast Obsidian Diamond Stars (provides crisp 3D definition)
+          pColor.copy(cDiamond);
+          pSize = 1.0 + Math.random() * 0.7;
         } else {
-          pSize = Math.random() < 0.8 ? 0.9 + Math.random() * 0.8 : 1.8 + Math.random() * 1.2;
+          pSize = isLight
+            ? (Math.random() < 0.75 ? 0.75 + Math.random() * 0.6 : 1.4 + Math.random() * 0.8)
+            : (Math.random() < 0.8 ? 0.9 + Math.random() * 0.8 : 1.8 + Math.random() * 1.2);
         }
       } else if (i < numRibbon + numSynapse) {
         // ── 2. The Cognitive Synapse Spark (Central "Mind" Core) ──
-        const r = Math.pow(Math.random(), 2.2) * 0.48;
+        const r = Math.pow(Math.random(), 2.2) * (isLight ? 0.38 : 0.48);
         const phi = Math.acos(2 * Math.random() - 1);
         const theta = Math.random() * Math.PI * 2;
 
@@ -233,19 +254,19 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
         lateral = 0.0;
         speedRate = 0.0;
 
-        // Radiant amber-gold nucleus with white-hot center
-        const rNorm = r / 0.48;
+        const maxR = isLight ? 0.38 : 0.48;
+        const rNorm = r / maxR;
         if (rNorm < 0.28) {
-          pColor.copy(cWhite);
+          pColor.copy(isLight ? cGold : cDiamond);
         } else if (rNorm < 0.65) {
-          pColor.lerpColors(cGold, cAmber, (rNorm - 0.28) / 0.37);
+          pColor.lerpColors(cGold, cCyan, (rNorm - 0.28) / 0.37);
         } else {
-          pColor.lerpColors(cAmber, cViolet, (rNorm - 0.65) / 0.35);
+          pColor.lerpColors(cCyan, cViolet, (rNorm - 0.65) / 0.35);
         }
 
-        pSize = Math.random() < 0.2 ? 2.4 + Math.random() * 1.6 : 1.1 + Math.random() * 1.0;
+        pSize = isLight ? 1.0 + Math.random() * 0.8 : (Math.random() < 0.2 ? 2.4 + Math.random() * 1.6 : 1.1 + Math.random() * 1.0);
       } else {
-        // ── 3. Ambient Floating Quantum Stardust ──
+        // ── 3. Ambient Floating Quantum Stardust (Both Light & Dark Modes) ──
         const ambR = 0.8 + Math.pow(Math.random(), 0.85) * 4.4;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
@@ -258,13 +279,24 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
         lateral = 0.0;
         speedRate = 0.05;
 
-        if (Math.random() < 0.25) {
-          pColor.copy(cAmber);
+        const ambChoice = Math.random();
+        if (ambChoice < 0.34) {
+          // Warm Golden Starlight
+          pColor.lerpColors(cAmber, cGold, Math.random());
+        } else if (ambChoice < 0.65) {
+          // Celestial Cyan & Sapphire Starlight
+          pColor.lerpColors(cCyan, cBlue, Math.random());
+        } else if (isLight && ambChoice < 0.82) {
+          // Diamond / Obsidian Starlight
+          pColor.copy(cDiamond);
         } else {
           pColor.lerpColors(cCyan, cViolet, Math.random());
         }
-        pColor.multiplyScalar(0.65);
-        pSize = 0.6 + Math.random() * 0.7;
+
+        if (!isLight) {
+          pColor.multiplyScalar(0.65);
+        }
+        pSize = isLight ? 0.75 + Math.random() * 0.75 : 0.6 + Math.random() * 0.7;
       }
 
       positions[i3] = x;
@@ -289,7 +321,7 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
       ribbonData[i3 + 2] = speedRate;
 
       twinkles[i * 2] = Math.random() * Math.PI * 2;
-      twinkles[i * 2 + 1] = 0.6 + Math.random() * 2.0;
+      twinkles[i * 2 + 1] = 0.8 + Math.random() * 2.2;
     }
 
     const geometry = new THREE.BufferGeometry();
@@ -304,12 +336,13 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
     const material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: isLight ? THREE.NormalBlending : THREE.AdditiveBlending,
       vertexColors: true,
       uniforms: {
         uTime: { value: 0 },
         uMorph: { value: 0 },
         uIntensity: { value: 1.0 },
+        uIsLight: { value: isLight ? 1.0 : 0.0 },
         uPixelRatio: { value: dpr },
         uMouse: { value: new THREE.Vector2(0, 0) },
       },
@@ -317,6 +350,7 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
         uniform float uTime;
         uniform float uMorph;
         uniform float uIntensity;
+        uniform float uIsLight;
         uniform float uPixelRatio;
         uniform vec2 uMouse;
 
@@ -364,15 +398,20 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
           gl_Position = projectionMatrix * mvPosition;
 
           // 4. Starlight Twinkle & Perspective Scale
-          float twinkle = sin(uTime * aTwinkle.y + aTwinkle.x) * 0.22 + 0.78;
-          gl_PointSize = (aSize * twinkle * uPixelRatio * (34.0 / -mvPosition.z)) * uIntensity;
-          gl_PointSize = clamp(gl_PointSize, 1.0, 18.0);
+          float twinkle = uIsLight > 0.5
+            ? (pow(sin(uTime * aTwinkle.y + aTwinkle.x) * 0.5 + 0.5, 1.8) * 0.85 + 0.35)
+            : (sin(uTime * aTwinkle.y + aTwinkle.x) * 0.28 + 0.72);
+
+          float sizeMultiplier = uIsLight > 0.5 ? 0.94 : 1.0;
+          gl_PointSize = (aSize * sizeMultiplier * twinkle * uPixelRatio * (34.0 / -mvPosition.z)) * uIntensity;
+          gl_PointSize = clamp(gl_PointSize, 1.2, 16.0);
 
           vAlpha = clamp(1.2 - (length(mvPosition.xyz) / 14.0), 0.2, 1.0);
         }
       `,
       fragmentShader: `
         uniform float uIntensity;
+        uniform float uIsLight;
         varying vec3 vColor;
         varying float vAlpha;
 
@@ -381,14 +420,29 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
           float dist = length(coord);
           if (dist > 0.5) discard;
 
-          // Crisp, luminous photonic disc optics
-          float core = exp(-dist * 13.0) * 1.25;
-          float halo = exp(-dist * 5.2) * 0.6;
+          if (uIsLight > 0.5) {
+            // Crisp, high-contrast diamond jewel star optics for light mode
+            float starCore = exp(-dist * 22.0) * 1.6;
+            float starCorona = smoothstep(0.48, 0.0, dist) * 0.5;
 
-          vec3 finalColor = vColor * halo * uIntensity + vec3(core * 1.15);
-          float finalAlpha = (core * 0.95 + halo * 0.65) * vAlpha;
+            // 4-point sparkling diffraction glint on stars
+            vec2 ray = abs(coord);
+            float spike = max(
+              exp(-ray.x * 28.0) * exp(-ray.y * 4.0),
+              exp(-ray.y * 28.0) * exp(-ray.x * 4.0)
+            ) * 0.42;
 
-          gl_FragColor = vec4(finalColor, clamp(finalAlpha, 0.0, 1.0));
+            vec3 particleColor = vColor;
+            float alpha = clamp((starCore * 1.25 + spike * 0.85 + starCorona * 0.4) * vAlpha * uIntensity, 0.0, 0.98);
+            gl_FragColor = vec4(particleColor, alpha);
+          } else {
+            // Crisp, luminous photonic disc optics for dark theme
+            float core = exp(-dist * 13.0) * 1.25;
+            float halo = exp(-dist * 5.2) * 0.6;
+            vec3 finalColor = vColor * halo * uIntensity + vec3(core * 1.15);
+            float finalAlpha = (core * 0.95 + halo * 0.65) * vAlpha;
+            gl_FragColor = vec4(finalColor, clamp(finalAlpha, 0.0, 1.0));
+          }
         }
       `,
     });
@@ -436,13 +490,16 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    let lastTime = performance.now();
 
-    const animate = () => {
+    const animate = (currentTime?: number) => {
       animationFrameId = requestAnimationFrame(animate);
       if (!isVisible) return;
 
-      const delta = Math.min(clock.getDelta(), 0.1);
+      const now = currentTime ?? performance.now();
+      const delta = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
       const state = stateRef.current;
 
       state.currentMorph += (state.targetMorph - state.currentMorph) * (delta * 3.5);
@@ -482,13 +539,13 @@ export const NexusRibbon: React.FC<NexusRibbonProps> = ({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [particleDensity, interactive]);
+  }, [particleDensity, interactive, isLight]);
 
   return (
     <div
       ref={mountRef}
       aria-hidden="true"
-      style={{ opacity }}
+      style={{ opacity: effectiveOpacity }}
       className={`pointer-events-none select-none overflow-hidden transition-opacity duration-700 ${className}`}
     />
   );
