@@ -85,7 +85,13 @@ export const LoginPage: React.FC = () => {
       navigate(destination, { replace: true });
     } catch (err: unknown) {
       const classified = classifyApiError(err, 'Google sign-in failed. Please try again.');
-      setGlobalError(classified.message);
+      if (classified.statusCode === 409 || classified.code === 'USER_ALREADY_EXISTS') {
+        setGlobalError(
+          'An account with this email already exists. Please log in with your email and password, then link your Google account under Settings > Account.',
+        );
+      } else {
+        setGlobalError(classified.message);
+      }
     } finally {
       setIsGoogleSubmitting(false);
     }

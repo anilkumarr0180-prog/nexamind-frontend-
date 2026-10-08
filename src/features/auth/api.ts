@@ -26,3 +26,13 @@ export const getCurrentUser = async (): Promise<SafeUser> => {
   return response.data.data;
 };
 
+export const linkGoogleAccount = async (
+  credential: string,
+): Promise<{ user: SafeUser; message: string }> => {
+  const response = await apiClient.post<ApiResponse<{ user: SafeUser; message: string }>>(
+    '/auth/google/link',
+    { credential },
+  );
+  return response.data.data;
+};
+
