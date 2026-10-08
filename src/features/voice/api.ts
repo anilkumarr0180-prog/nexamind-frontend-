@@ -20,7 +20,7 @@ export async function transcribeAudio({
   language,
   prompt,
   signal,
-  timeoutMs = 30000,
+  timeoutMs = 25000,
 }: TranscribeAudioParams): Promise<TranscriptionResult> {
   const formData = new FormData();
   formData.append("file", file, filename);
@@ -37,12 +37,16 @@ export async function transcribeAudio({
     formData,
     {
       headers: {
-        "Content-Type": "multipart/form-data",
+        "Content-Type": undefined,
       },
       signal,
       timeout: timeoutMs,
     },
   );
+
+  if (!response?.data?.data) {
+    throw new Error("Invalid response received from transcription service.");
+  }
 
   return response.data.data;
 }
