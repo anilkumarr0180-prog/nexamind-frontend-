@@ -3,16 +3,22 @@ import type { AudioRecording, VoiceRecordingState, VoiceErrorType } from "./type
 import { isSilenceHallucination } from "./types";
 import { transcribeAudio } from "./api";
 
-function extractTranscriptionErrorMessage(err: unknown): string {
+export const EMPTY_SPEECH_ERROR_MESSAGE =
+  "No speech detected. Please check that your microphone is connected, unmuted, and speak clearly.";
+export const EMPTY_AUDIO_ERROR_MESSAGE =
+  "No audio data was captured. Please check that your microphone is connected, unmuted, and speak clearly.";
+
+export function extractTranscriptionErrorMessage(err: unknown): string {
   if (!err) return "Failed to transcribe audio.";
   const anyErr = err as {
     name?: string;
     code?: string;
     message?: string;
     response?: {
+      status?: number;
       data?: {
         message?: string;
-        error?: { message?: string };
+        error?: { message?: string; code?: string };
       };
     };
   };
@@ -20,13 +26,25 @@ function extractTranscriptionErrorMessage(err: unknown): string {
   if (
     anyErr.name === "CanceledError" ||
     anyErr.name === "AbortError" ||
-    anyErr.code === "ERR_CANCELED"
+    anyErr.code === "ERR_CANCELED" ||
+    anyErr.message === "AbortError" ||
+    anyErr.message === "CanceledError"
   ) {
     return "Transcription was cancelled.";
   }
 
-  if (anyErr.code === "ECONNABORTED" || (typeof anyErr.message === "string" && anyErr.message.toLowerCase().includes("timeout"))) {
-    return "Transcription request timed out after 30 seconds. Please try again with a shorter recording.";
+  if (
+    anyErr.code === "ECONNABORTED" ||
+    anyErr.code === "ETIMEDOUT" ||
+    anyErr.response?.data?.error?.code === "VOICE_PROVIDER_TIMEOUT" ||
+    anyErr.response?.status === 504 ||
+    (typeof anyErr.message === "string" && anyErr.message.toLowerCase().includes("timeout"))
+  ) {
+    return "Transcription request timed out. Please try again with a shorter recording.";
+  }
+
+  if (anyErr.response?.data?.error?.code === "RATE_LIMIT_EXCEEDED" || anyErr.response?.status === 429) {
+    return "Speech-to-text rate limit exceeded. Please wait a moment and try again.";
   }
 
   if (anyErr.response?.data?.error?.message) {
@@ -37,11 +55,41 @@ function extractTranscriptionErrorMessage(err: unknown): string {
     return String(anyErr.response.data.message);
   }
 
+  if (
+    anyErr.code === "ERR_NETWORK" ||
+    (typeof anyErr.message === "string" && anyErr.message.toLowerCase().includes("network error"))
+  ) {
+    return "Unable to reach the transcription service. Please check your network connection.";
+  }
+
   if (anyErr.message) {
     return String(anyErr.message);
   }
 
   return "Failed to transcribe audio.";
+}
+
+export function getAudioFilename(mimeType?: string): string {
+  const clean = (mimeType || "").toLowerCase();
+  if (clean.includes("webm")) {
+    return "recording.webm";
+  }
+  if (clean.includes("mp4") || clean.includes("m4a") || clean.includes("aac")) {
+    return "recording.m4a";
+  }
+  if (clean.includes("ogg") || clean.includes("opus") || clean.includes("oga")) {
+    return "recording.ogg";
+  }
+  if (clean.includes("wav")) {
+    return "recording.wav";
+  }
+  if (clean.includes("mpeg") || clean.includes("mp3")) {
+    return "recording.mp3";
+  }
+  if (clean.includes("flac")) {
+    return "recording.flac";
+  }
+  return "recording.webm";
 }
 
 function getSupportedAudioMimeType(): string | undefined {
@@ -112,6 +160,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stoppingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const activeUrlRef = useRef<string | null>(null);
   const isDiscardingRef = useRef<boolean>(false);
@@ -145,6 +194,13 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     startTimeRef.current = null;
   }, []);
 
+  const clearStoppingTimeout = useCallback(() => {
+    if (stoppingTimeoutRef.current) {
+      clearTimeout(stoppingTimeoutRef.current);
+      stoppingTimeoutRef.current = null;
+    }
+  }, []);
+
   const revokeActiveUrl = useCallback(() => {
     if (activeUrlRef.current) {
       try {
@@ -168,6 +224,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     isDiscardingRef.current = true;
     isStoppingRef.current = false;
     clearTimer();
+    clearStoppingTimeout();
 
     // Abort any active in-flight transcription request
     if (inFlightControllerRef.current) {
@@ -205,8 +262,11 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     setError(null);
     setErrorType(null);
     setState("idle");
-    isDiscardingRef.current = false;
-  }, [clearTimer, stopStreamTracks, revokeActiveUrl]);
+
+    setTimeout(() => {
+      isDiscardingRef.current = false;
+    }, 100);
+  }, [clearTimer, clearStoppingTimeout, stopStreamTracks, revokeActiveUrl]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -219,6 +279,17 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     setIsTranscribing(false);
     isStoppingRef.current = false;
     isTranscribingRef.current = false;
+    clearStoppingTimeout();
+
+    // Clean up any in-flight transcription request before starting a new recording
+    if (inFlightControllerRef.current) {
+      try {
+        inFlightControllerRef.current.abort();
+      } catch {
+        // ignore abort
+      }
+      inFlightControllerRef.current = null;
+    }
 
     if (!isSupported) {
       setErrorType("not_supported");
@@ -310,6 +381,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     };
 
     recorder.onstop = async () => {
+      clearStoppingTimeout();
       clearTimer();
       stopStreamTracks();
       isStoppingRef.current = false;
@@ -323,20 +395,23 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
       const blob = new Blob(audioChunksRef.current, { type: effectiveMimeType });
       audioChunksRef.current = [];
 
-      if (blob.size === 0) {
+      const finalDuration = startTimeRef.current
+        ? Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+        : 1;
+
+      const ext = getAudioFilename(effectiveMimeType);
+
+      if (blob.size < 100) {
         setErrorType("recording_failed");
-        setError("No audio data was captured. Please check your microphone and try again.");
+        setError(EMPTY_AUDIO_ERROR_MESSAGE);
         setState("error");
+        optionsRef.current?.onTranscriptionError?.(EMPTY_AUDIO_ERROR_MESSAGE);
         return;
       }
 
       const url = URL.createObjectURL(blob);
       revokeActiveUrl();
       activeUrlRef.current = url;
-
-      const finalDuration = startTimeRef.current
-        ? Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
-        : 1;
 
       const recordedAudio: AudioRecording = {
         blob,
@@ -350,7 +425,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
       setRecording(recordedAudio);
       setDurationSeconds(finalDuration);
 
-      // Step 3: Automatically upload and transcribe the audio immediately after recording stops
+      // Automatically upload and transcribe immediately after recording stops
       setState("transcribing");
       setIsTranscribing(true);
       isTranscribingRef.current = true;
@@ -359,15 +434,6 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
       inFlightControllerRef.current = controller;
 
       try {
-        const ext =
-          recordedAudio.mimeType.includes("mp4") || recordedAudio.mimeType.includes("aac")
-            ? "recording.m4a"
-            : recordedAudio.mimeType.includes("ogg")
-            ? "recording.ogg"
-            : recordedAudio.mimeType.includes("wav")
-            ? "recording.wav"
-            : "recording.webm";
-
         const res = await transcribeAudio({
           file: blob,
           filename: ext,
@@ -376,7 +442,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
           signal: controller.signal,
         });
 
-        if (isDiscardingRef.current) {
+        if (isDiscardingRef.current || controller.signal.aborted) {
           return;
         }
 
@@ -385,15 +451,13 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
           setTranscriptionText(text);
           optionsRef.current?.onTranscriptionSuccess?.(text);
           setState("idle");
-          // Audio has successfully converted to text; clean up audio session
           revokeActiveUrl();
           setRecording(null);
         } else {
-          const emptyMsg = "No speech was detected in your recording. Please try speaking closer to the microphone.";
           setErrorType("recording_failed");
-          setError(emptyMsg);
+          setError(EMPTY_SPEECH_ERROR_MESSAGE);
           setState("recorded");
-          optionsRef.current?.onTranscriptionError?.(emptyMsg);
+          optionsRef.current?.onTranscriptionError?.(EMPTY_SPEECH_ERROR_MESSAGE);
         }
       } catch (err: unknown) {
         if (isDiscardingRef.current || controller.signal.aborted) {
@@ -412,12 +476,15 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     };
 
     recorder.onerror = (_event: Event) => {
+      clearStoppingTimeout();
       clearTimer();
       stopStreamTracks();
       isStoppingRef.current = false;
       setErrorType("recording_failed");
-      setError("An error occurred during audio recording.");
+      const errMsg = "An error occurred during audio recording.";
+      setError(errMsg);
       setState("error");
+      optionsRef.current?.onTranscriptionError?.(errMsg);
     };
 
     try {
@@ -432,22 +499,42 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
         }
       }, 500);
     } catch (startErr) {
+      clearStoppingTimeout();
       stopStreamTracks();
       clearTimer();
       isStoppingRef.current = false;
       setErrorType("recording_failed");
-      setError(`Failed to start recording: ${(startErr as Error)?.message || "Unknown error"}`);
+      const errMsg = `Failed to start recording: ${(startErr as Error)?.message || "Unknown error"}`;
+      setError(errMsg);
       setState("error");
+      optionsRef.current?.onTranscriptionError?.(errMsg);
     }
-  }, [clearError, isSupported, revokeActiveUrl, stopStreamTracks, clearTimer]);
+  }, [clearError, isSupported, revokeActiveUrl, stopStreamTracks, clearTimer, clearStoppingTimeout]);
 
   const stopRecording = useCallback(() => {
     if (isStoppingRef.current || isTranscribingRef.current) {
       return;
     }
+    clearStoppingTimeout();
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       isStoppingRef.current = true;
       setState("stopping");
+
+      // Safety timeout: If browser MediaRecorder never fires onstop within 3.5s, force cleanup
+      stoppingTimeoutRef.current = setTimeout(() => {
+        if (isStoppingRef.current) {
+          isStoppingRef.current = false;
+          stopStreamTracks();
+          clearTimer();
+          setErrorType("recording_failed");
+          const msg = "Audio recording timed out while stopping. Please try again.";
+          setError(msg);
+          setState("error");
+          optionsRef.current?.onTranscriptionError?.(msg);
+        }
+      }, 3500);
+
       try {
         if (typeof mediaRecorderRef.current.requestData === "function") {
           try {
@@ -458,18 +545,39 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
         }
         mediaRecorderRef.current.stop();
       } catch (stopErr) {
+        clearStoppingTimeout();
         isStoppingRef.current = false;
         stopStreamTracks();
         clearTimer();
         setErrorType("recording_failed");
-        setError(`Failed to stop recording: ${(stopErr as Error)?.message || "Unknown error"}`);
+        const msg = `Failed to stop recording: ${(stopErr as Error)?.message || "Unknown error"}`;
+        setError(msg);
         setState("error");
+        optionsRef.current?.onTranscriptionError?.(msg);
+      }
+    } else {
+      // If recorder is not in recording state, reset cleanly
+      stopStreamTracks();
+      clearTimer();
+      isStoppingRef.current = false;
+      if (state === "recording" || state === "stopping") {
+        setState("idle");
       }
     }
-  }, [stopStreamTracks, clearTimer]);
+  }, [stopStreamTracks, clearTimer, clearStoppingTimeout, state]);
 
   const transcribeRecording = useCallback(async (): Promise<string | null> => {
     if (!recording?.blob || isTranscribingRef.current) return null;
+
+    // Abort any old controller if still hanging
+    if (inFlightControllerRef.current) {
+      try {
+        inFlightControllerRef.current.abort();
+      } catch {
+        // ignore
+      }
+      inFlightControllerRef.current = null;
+    }
 
     isTranscribingRef.current = true;
     setIsTranscribing(true);
@@ -480,14 +588,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
     inFlightControllerRef.current = controller;
 
     try {
-      const ext =
-        recording.mimeType.includes("mp4") || recording.mimeType.includes("aac")
-          ? "recording.m4a"
-          : recording.mimeType.includes("ogg")
-          ? "recording.ogg"
-          : recording.mimeType.includes("wav")
-          ? "recording.wav"
-          : "recording.webm";
+      const ext = getAudioFilename(recording.mimeType);
 
       const res = await transcribeAudio({
         file: recording.blob,
@@ -497,7 +598,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
         signal: controller.signal,
       });
 
-      if (isDiscardingRef.current) return null;
+      if (isDiscardingRef.current || controller.signal.aborted) return null;
 
       const text = res.text?.trim() || "";
       if (text.length > 0 && !isSilenceHallucination(text)) {
@@ -509,8 +610,9 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
         return text;
       } else {
         setErrorType("recording_failed");
-        setError("No speech was detected in your recording. Please try speaking closer to the microphone.");
+        setError(EMPTY_SPEECH_ERROR_MESSAGE);
         setState("recorded");
+        optionsRef.current?.onTranscriptionError?.(EMPTY_SPEECH_ERROR_MESSAGE);
         return null;
       }
     } catch (err: unknown) {
@@ -521,6 +623,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
       setError(msg);
       setErrorType("recording_failed");
       setState("recorded");
+      optionsRef.current?.onTranscriptionError?.(msg);
       return null;
     } finally {
       isTranscribingRef.current = false;
@@ -537,6 +640,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
   useEffect(() => {
     return () => {
       clearTimer();
+      clearStoppingTimeout();
       if (inFlightControllerRef.current) {
         try {
           inFlightControllerRef.current.abort();
@@ -562,7 +666,7 @@ export function useAudioRecorder(options?: UseAudioRecorderOptions): UseAudioRec
       stopStreamTracks();
       revokeActiveUrl();
     };
-  }, [clearTimer, stopStreamTracks, revokeActiveUrl]);
+  }, [clearTimer, clearStoppingTimeout, stopStreamTracks, revokeActiveUrl]);
 
   return {
     state,

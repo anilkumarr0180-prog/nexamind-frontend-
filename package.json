@@ -9,6 +9,9 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "lint": "oxlint",
+    "test:voice": "npx tsx src/features/voice/voice-reliability.test.ts",
+    "test:auth": "npx tsx --tsconfig tsconfig.app.json src/features/auth/auth-google.test.ts",
+    "test": "npm run test:auth && npm run test:voice",
     "preview": "vite preview"
   },
   "dependencies": {

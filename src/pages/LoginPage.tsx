@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/features/auth';
+import { useAuth, GoogleSignInButton } from '@/features/auth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { NexaMindIcon } from '@/components/ui';
@@ -8,7 +8,7 @@ import { classifyApiError } from '@/lib/utils/error';
 import { warmUpBackend } from '@/lib/api/client';
 
 export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -16,6 +16,7 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [slowWakeup, setSlowWakeup] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -24,6 +25,16 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     warmUpBackend();
   }, []);
+
+  // Automatically dismiss transient Google guidance notices after 5 seconds
+  useEffect(() => {
+    if (globalError && globalError.toLowerCase().includes('google')) {
+      const timer = setTimeout(() => {
+        setGlobalError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [globalError]);
 
   // Display reassuring feedback if login takes > 2.5s due to server cold start
   useEffect(() => {
@@ -58,11 +69,40 @@ export const LoginPage: React.FC = () => {
     return Object.keys(errors).length === 0;
   };
 
+  const isBusy = isSubmitting || isGoogleSubmitting;
+
+  const handleGoogleSuccess = async (credential: string) => {
+    if (isBusy) return;
+
+    setIsGoogleSubmitting(true);
+    setGlobalError(null);
+
+    try {
+      await loginWithGoogle(credential);
+
+      // Redirect to target route or default /app
+      const destination = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/app';
+      navigate(destination, { replace: true });
+    } catch (err: unknown) {
+      const classified = classifyApiError(err, 'Google sign-in failed. Please try again.');
+      setGlobalError(classified.message);
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  };
+
+  const handleGoogleError = (err: Error | string) => {
+    const message = typeof err === 'string' ? err : err.message;
+    if (message && !message.toLowerCase().includes('user_cancel') && !message.toLowerCase().includes('tap_outside')) {
+      setGlobalError(message);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setGlobalError(null);
 
-    if (isSubmitting || !validateForm()) {
+    if (isBusy || !validateForm()) {
       return;
     }
 
@@ -105,43 +145,76 @@ export const LoginPage: React.FC = () => {
 
         {/* Auth Card */}
         <div className="rounded-2xl sm:rounded-3xl bg-[#12172a]/85 backdrop-blur-xl border border-white/[0.12] shadow-2xl p-6 sm:p-8 space-y-5">
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {globalError && (
-              <div
-                role="alert"
-                className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-3.5 text-xs text-rose-300 leading-relaxed animate-in fade-in flex items-start gap-2.5"
+          {globalError && (
+            <div
+              role="alert"
+              className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-3.5 text-xs text-rose-300 leading-relaxed animate-in fade-in flex items-start gap-2.5"
+            >
+              <svg
+                className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                <svg
-                  className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <span className="flex-1">{globalError}</span>
+              <button
+                type="button"
+                onClick={() => setGlobalError(null)}
+                className="text-rose-400 hover:text-rose-200 p-0.5 -mr-1 -mt-0.5 rounded cursor-pointer transition-colors"
+                aria-label="Dismiss error"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span>{globalError}</span>
-              </div>
-            )}
+              </button>
+            </div>
+          )}
 
+          {/* Google Sign-In */}
+          <div className="space-y-4">
+            <GoogleSignInButton
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              disabled={isBusy}
+              isLoading={isGoogleSubmitting}
+              text="continue"
+            />
+
+            <div className="relative flex items-center justify-center gap-3">
+              <div className="flex-1 border-t border-white/[0.08]" />
+              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400 select-none whitespace-nowrap">
+                Or continue with email
+              </span>
+              <div className="flex-1 border-t border-white/[0.08]" />
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <Input
               label="Email Address"
               type="email"
               autoComplete="email"
               placeholder="user@example.com"
               value={email}
+              onFocus={() => {
+                if (globalError) setGlobalError(null);
+              }}
               onChange={(e) => {
                 setEmail(e.target.value);
+                if (globalError) setGlobalError(null);
                 if (fieldErrors.email) {
                   setFieldErrors((prev) => ({ ...prev, email: undefined }));
-                } 
+                }
               }}
               error={fieldErrors.email}
-              disabled={isSubmitting}
+              disabled={isBusy}
               required
             />
 
@@ -151,14 +224,18 @@ export const LoginPage: React.FC = () => {
               autoComplete="current-password"
               placeholder="••••••••••••"
               value={password}
+              onFocus={() => {
+                if (globalError) setGlobalError(null);
+              }}
               onChange={(e) => {
                 setPassword(e.target.value);
+                if (globalError) setGlobalError(null);
                 if (fieldErrors.password) {
                   setFieldErrors((prev) => ({ ...prev, password: undefined }));
                 }
               }}
               error={fieldErrors.password}
-              disabled={isSubmitting}
+              disabled={isBusy}
               required
               rightIcon={
                 <button
@@ -203,7 +280,7 @@ export const LoginPage: React.FC = () => {
               size="md"
               className="w-full h-11 bg-gradient-to-r from-brand-600 via-indigo-600 to-indigo-700 hover:from-brand-500 hover:via-indigo-500 hover:to-indigo-600 text-white font-semibold text-sm rounded-xl shadow-md shadow-brand-600/25 border border-brand-400/25 transition-all duration-200 mt-2 cursor-pointer"
               loading={isSubmitting}
-              disabled={isSubmitting}
+              disabled={isBusy}
             >
               Sign In
             </Button>

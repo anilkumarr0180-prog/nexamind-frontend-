@@ -7,7 +7,7 @@ import {
   setOnUnauthorizedCallback,
   clearOnUnauthorizedCallback,
 } from '@/lib/api/client';
-import { getCurrentUser, loginUser, registerUser, authKeys } from './api';
+import { getCurrentUser, loginUser, registerUser, loginWithGoogle as loginWithGoogleApi, authKeys } from './api';
 import type { LoginCredentials, RegisterCredentials, SafeUser } from '@/types';
 
 export type AuthStatus = 'AUTHENTICATING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
@@ -19,6 +19,7 @@ export interface AuthContextValue {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   refetchUser: () => Promise<void>;
 }
@@ -98,6 +99,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     [queryClient],
   );
 
+  const loginWithGoogle = useCallback(
+    async (credential: string): Promise<void> => {
+      const result = await loginWithGoogleApi(credential);
+      setAuthToken(result.accessToken);
+      setUser(result.user);
+      queryClient.setQueryData(authKeys.currentUser(), result.user);
+      setStatus('AUTHENTICATED');
+    },
+    [queryClient],
+  );
+
   const value: AuthContextValue = {
     status,
     user,
@@ -105,6 +117,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: status === 'AUTHENTICATING',
     login,
     register,
+    loginWithGoogle,
     logout,
     refetchUser: loadCurrentUser,
   };

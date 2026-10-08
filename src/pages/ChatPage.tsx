@@ -270,12 +270,45 @@ export const ChatPage: React.FC = () => {
   // Assistant Speech Synthesis (TTS - Step 4, 5 & 6)
   const speechSynthesizer = useSpeechSynthesis();
 
+  // Audio playback state for local recording preview
+  const [isPlayingRecordedAudio, setIsPlayingRecordedAudio] = useState(false);
+  const [recordedAudioCurrentTime, setRecordedAudioCurrentTime] = useState(0);
+  const recordedAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    setIsPlayingRecordedAudio(false);
+    setRecordedAudioCurrentTime(0);
+    if (recordedAudioRef.current) {
+      recordedAudioRef.current.pause();
+      recordedAudioRef.current.currentTime = 0;
+    }
+  }, [voiceRecorder.recording?.url]);
+
+  const togglePlayRecordedAudio = useCallback(() => {
+    const audio = recordedAudioRef.current;
+    if (!audio) return;
+    if (isPlayingRecordedAudio) {
+      audio.pause();
+      setIsPlayingRecordedAudio(false);
+    } else {
+      audio.play().then(() => {
+        setIsPlayingRecordedAudio(true);
+      }).catch(() => {
+        setIsPlayingRecordedAudio(false);
+      });
+    }
+  }, [isPlayingRecordedAudio]);
+
   const exitVoiceMode = useCallback(() => {
     setIsVoiceMode(false);
     setVoiceModeState("idle");
     setVoiceModeError(null);
     voiceRecorder.discardRecording();
     speechSynthesizer.stop();
+    if (recordedAudioRef.current) {
+      recordedAudioRef.current.pause();
+    }
+    setIsPlayingRecordedAudio(false);
   }, [voiceRecorder, speechSynthesizer]);
 
   const startVoiceMode = useCallback(async () => {
@@ -310,7 +343,7 @@ export const ChatPage: React.FC = () => {
   // Synchronize Voice Mode state with audio recorder status
   useEffect(() => {
     if (isVoiceMode) {
-      if (voiceRecorder.state === "error" && voiceRecorder.error) {
+      if ((voiceRecorder.state === "error" || voiceRecorder.state === "recorded") && voiceRecorder.error) {
         setVoiceModeState("error");
         setVoiceModeError(voiceRecorder.error);
       } else if (
@@ -324,6 +357,8 @@ export const ChatPage: React.FC = () => {
         voiceRecorder.isTranscribing
       ) {
         setVoiceModeState("transcribing");
+      } else if (voiceRecorder.state === "idle" && !voiceRecorder.error) {
+        setVoiceModeState((prev) => (prev === "transcribing" || prev === "listening" ? "idle" : prev));
       }
     }
   }, [isVoiceMode, voiceRecorder.state, voiceRecorder.error, voiceRecorder.isTranscribing]);
@@ -2027,41 +2062,89 @@ export const ChatPage: React.FC = () => {
               </div>
             )}
 
-            {/* Local Audio Recording Preview & Transcription (Step 2) */}
+            {/* Local Audio Recording Preview & Transcription */}
             {voiceRecorder.recording && (
-              <div className="relative mx-1.5 mb-1 p-2.5 rounded-xl bg-slate-100/90 dark:bg-white/[0.04] border border-slate-200/90 dark:border-white/[0.08] flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center gap-2.5 sm:gap-3 w-full">
-                  <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/15 to-violet-500/20 dark:from-rose-500/25 dark:to-violet-600/30 border border-rose-300/50 dark:border-rose-400/30 flex items-center justify-center flex-shrink-0 text-rose-500 dark:text-rose-400">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                      />
-                    </svg>
-                  </div>
+              <div className="relative mx-1.5 mb-2 p-3 rounded-2xl bg-gradient-to-r from-slate-900/95 via-[#161426]/95 to-slate-900/95 dark:from-[#131122]/95 dark:via-[#19162e]/95 dark:to-[#131122]/95 border border-violet-500/25 dark:border-violet-500/20 backdrop-blur-xl shadow-xl shadow-black/25 flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <audio
+                  ref={recordedAudioRef}
+                  src={voiceRecorder.recording.url}
+                  onTimeUpdate={() => {
+                    if (recordedAudioRef.current) {
+                      setRecordedAudioCurrentTime(recordedAudioRef.current.currentTime);
+                    }
+                  }}
+                  onEnded={() => {
+                    setIsPlayingRecordedAudio(false);
+                    setRecordedAudioCurrentTime(0);
+                  }}
+                  className="hidden"
+                />
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-800 dark:text-[#e0e0f0]">
-                        Voice Recording
-                      </span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-200/80 dark:bg-white/10 text-slate-600 dark:text-slate-300">
-                        Local audio
+                <div className="flex items-center gap-3 w-full">
+                  {/* Play / Pause Circular Button */}
+                  <button
+                    type="button"
+                    onClick={togglePlayRecordedAudio}
+                    title={isPlayingRecordedAudio ? "Pause preview" : "Play preview"}
+                    aria-label={isPlayingRecordedAudio ? "Pause preview" : "Play preview"}
+                    className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/25 cursor-pointer active:scale-95 transition-all"
+                  >
+                    {isPlayingRecordedAudio ? (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* Audio Info & Scrubber */}
+                  <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
+                          Voice Recording
+                        </span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/20">
+                          {(voiceRecorder.recording.sizeBytes / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 flex-shrink-0">
+                        {formatVoiceDuration(Math.round(recordedAudioCurrentTime || 0))} / {formatVoiceDuration(voiceRecorder.recording.durationSeconds)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-[#707090] mt-0.5">
-                      <span>{formatVoiceDuration(voiceRecorder.recording.durationSeconds)}</span>
-                      {" • "}
-                      <span>{(voiceRecorder.recording.sizeBytes / 1024).toFixed(1)} KB</span>
-                    </p>
-                  </div>
 
-                  <audio
-                    src={voiceRecorder.recording.url}
-                    controls
-                    className="h-7 max-w-[140px] sm:max-w-[200px]"
-                  />
+                    {/* Interactive Scrubber Bar */}
+                    <div
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                        const dur = recordedAudioRef.current?.duration || voiceRecorder.recording?.durationSeconds || 1;
+                        if (recordedAudioRef.current && dur > 0) {
+                          recordedAudioRef.current.currentTime = clickRatio * dur;
+                          setRecordedAudioCurrentTime(recordedAudioRef.current.currentTime);
+                        }
+                      }}
+                      className="w-full h-1.5 rounded-full bg-slate-200/80 dark:bg-white/10 relative cursor-pointer overflow-hidden group py-0.5 -my-0.5"
+                    >
+                      <div
+                        className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-75"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              ((recordedAudioCurrentTime || 0) /
+                                (recordedAudioRef.current?.duration || voiceRecorder.recording?.durationSeconds || 1)) *
+                                100
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
 
                   {/* Transcribe / Retry Button */}
                   <button
@@ -2072,7 +2155,7 @@ export const ChatPage: React.FC = () => {
                     disabled={voiceRecorder.isTranscribing}
                     title="Transcribe speech to text using Groq Whisper"
                     aria-label="Transcribe audio"
-                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-violet-500/20 transition-all cursor-pointer disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
                   >
                     {voiceRecorder.isTranscribing ? (
                       <>
@@ -2092,12 +2175,13 @@ export const ChatPage: React.FC = () => {
                     )}
                   </button>
 
+                  {/* Discard Button */}
                   <button
                     type="button"
                     onClick={voiceRecorder.discardRecording}
                     title="Discard recording"
                     aria-label="Discard recording"
-                    className="h-6 w-6 rounded-full bg-slate-200/80 hover:bg-slate-300 dark:bg-white/[0.08] dark:hover:bg-white/[0.16] text-slate-500 hover:text-rose-600 dark:text-[#a0a0c0] dark:hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                    className="h-7 w-7 rounded-full bg-slate-200/80 hover:bg-rose-100 dark:bg-white/[0.06] dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-600 dark:text-[#a0a0c0] dark:hover:text-rose-400 border border-transparent dark:border-white/[0.06] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2136,20 +2220,24 @@ export const ChatPage: React.FC = () => {
 
             {/* Voice Recording Error Banner */}
             {voiceRecorder.error && (
-              <div className="mx-1.5 mb-1 px-3 py-1.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between animate-in fade-in">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <svg className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="truncate">{voiceRecorder.error}</span>
+              <div className="mx-1.5 mb-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/[0.12] via-orange-500/[0.08] to-transparent dark:from-amber-500/[0.15] dark:via-orange-500/[0.08] dark:to-transparent border border-amber-400/30 dark:border-amber-400/25 text-xs text-amber-900 dark:text-amber-200/90 flex items-center justify-between gap-2.5 backdrop-blur-md shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-150">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0 text-amber-500 dark:text-amber-400">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <span className="font-medium truncate">{voiceRecorder.error}</span>
                 </div>
                 <button
                   type="button"
                   onClick={voiceRecorder.clearError}
-                  className="text-amber-600 dark:text-amber-300 hover:text-amber-800 dark:hover:text-white ml-2 text-xs cursor-pointer font-bold flex-shrink-0"
+                  className="w-5 h-5 rounded-full hover:bg-amber-400/20 text-amber-600 dark:text-amber-300 hover:text-amber-900 dark:hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer flex-shrink-0"
                   aria-label="Dismiss error"
                 >
-                  ✕
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             )}
@@ -2157,28 +2245,33 @@ export const ChatPage: React.FC = () => {
             {/* Input Row */}
             <div className="flex items-end gap-2">
               {isVoiceMode ? (
-                /* Voice Mode Interactive Panel (Step 5) */
-                <div className="flex-1 min-h-[48px] flex items-center justify-between px-3.5 py-2 rounded-2xl bg-gradient-to-r from-violet-950/30 via-slate-900/40 to-violet-950/30 dark:from-[#1b1736] dark:via-[#141228] dark:to-[#10101c] border border-violet-500/30 shadow-md shadow-violet-950/20 animate-in fade-in">
+                /* Voice Mode Interactive Panel */
+                <div className="flex-1 min-h-[50px] flex items-center justify-between px-4 py-2 rounded-2xl bg-gradient-to-r from-violet-950/40 via-[#161329] to-slate-900/40 dark:from-[#1b1736] dark:via-[#141228] dark:to-[#10101c] border border-violet-500/30 shadow-lg shadow-violet-950/25 backdrop-blur-xl animate-in fade-in duration-200">
                   <div className="flex items-center gap-2.5 min-w-0">
                     {voiceModeState === "listening" ? (
                       <>
-                        <div className="relative flex items-center justify-center flex-shrink-0">
+                        <div className="relative flex items-center gap-1 flex-shrink-0">
                           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping absolute" />
                           <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                          <div className="flex items-center gap-0.5 ml-2 h-4" aria-hidden="true">
+                            <span className="w-0.5 bg-rose-400 rounded-full h-3 animate-pulse" />
+                            <span className="w-0.5 bg-rose-400 rounded-full h-4 animate-pulse delay-75" />
+                            <span className="w-0.5 bg-rose-400 rounded-full h-2 animate-pulse delay-150" />
+                          </div>
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-rose-500 dark:text-rose-400">Listening...</span>
-                            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-slate-800 dark:text-slate-200">
+                            <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded-md bg-black/20 dark:bg-white/10 text-slate-800 dark:text-slate-100">
                               {formatVoiceDuration(voiceRecorder.durationSeconds)}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Speak your message</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Speak your message clearly</p>
                         </div>
                       </>
                     ) : voiceModeState === "transcribing" ? (
                       <>
-                        <svg className="animate-spin h-3.5 w-3.5 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-4 w-4 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                         </svg>
@@ -2189,8 +2282,8 @@ export const ChatPage: React.FC = () => {
                       </>
                     ) : voiceModeState === "thinking" ? (
                       <>
-                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 flex-shrink-0 animate-pulse">
-                          <span className="text-[10px] font-bold">⚡</span>
+                        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/20 text-violet-300 flex-shrink-0 animate-pulse border border-violet-500/30">
+                          <span className="text-xs font-bold">⚡</span>
                         </div>
                         <div className="min-w-0">
                           <span className="text-xs font-bold text-violet-300">
@@ -2213,15 +2306,15 @@ export const ChatPage: React.FC = () => {
                           }
                         }}
                       >
-                        <span className="flex items-center gap-0.5 h-3.5 px-0.5" aria-hidden="true">
-                          <span className="w-0.5 bg-emerald-400 rounded-full h-3.5 animate-pulse" />
-                          <span className="w-0.5 bg-emerald-400 rounded-full h-2 animate-pulse delay-75" />
-                          <span className="w-0.5 bg-emerald-400 rounded-full h-3 animate-pulse delay-150" />
+                        <span className="flex items-center gap-0.5 h-4 px-1" aria-hidden="true">
+                          <span className="w-1 bg-emerald-400 rounded-full h-4 animate-pulse" />
+                          <span className="w-1 bg-emerald-400 rounded-full h-2.5 animate-pulse delay-75" />
+                          <span className="w-1 bg-emerald-400 rounded-full h-3.5 animate-pulse delay-150" />
                         </span>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-emerald-400">Speaking...</span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-400 group-hover:text-rose-400 dark:group-hover:text-rose-300 font-semibold transition-colors flex items-center gap-0.5">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-300 group-hover:text-rose-400 font-semibold transition-colors flex items-center gap-1 bg-white/[0.06] px-1.5 py-0.5 rounded-full border border-white/[0.08]">
                               <span>🎙</span>
                               <span>Tap to interrupt</span>
                             </span>
@@ -2231,7 +2324,7 @@ export const ChatPage: React.FC = () => {
                       </div>
                     ) : voiceModeState === "error" ? (
                       <>
-                        <span className="text-amber-400 text-xs flex-shrink-0">⚠️</span>
+                        <span className="text-amber-400 text-sm flex-shrink-0">⚠️</span>
                         <div className="min-w-0">
                           <span className="text-xs font-bold text-amber-400">Voice Error</span>
                           <p className="text-[11px] text-amber-300/80 truncate max-w-[200px] sm:max-w-xs">
@@ -2241,31 +2334,31 @@ export const ChatPage: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 flex-shrink-0">
-                          <span className="text-[10px] font-bold">🎙</span>
+                        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/20 text-violet-300 flex-shrink-0 border border-violet-500/30">
+                          <span className="text-xs font-bold">🎙</span>
                         </div>
                         <div className="min-w-0">
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Voice Mode Ready</span>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Tap to speak again</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Tap Speak to begin</p>
                         </div>
                       </>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     {voiceModeState === "listening" ? (
                       <>
                         <button
                           type="button"
                           onClick={exitVoiceMode}
-                          className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 font-medium transition-colors cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           type="button"
                           onClick={voiceRecorder.stopRecording}
-                          className="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                          className="px-3.5 py-1 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-rose-500/25 transition-all cursor-pointer active:scale-95"
                         >
                           <span className="w-2 h-2 rounded-sm bg-white" />
                           <span>Done</span>
@@ -2275,7 +2368,7 @@ export const ChatPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={exitVoiceMode}
-                        className="px-2.5 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                        className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 font-medium transition-colors cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -2297,7 +2390,7 @@ export const ChatPage: React.FC = () => {
                           onClick={handleVoiceInterruption}
                           title="Interrupt and speak"
                           aria-label="Interrupt response and speak"
-                          className="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                          className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-rose-500/25 transition-all cursor-pointer active:scale-95"
                         >
                           <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                           <span>Interrupt</span>
@@ -2316,7 +2409,7 @@ export const ChatPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={exitVoiceMode}
-                          className="px-2 py-1 text-xs text-slate-500 hover:text-white font-medium transition-colors cursor-pointer"
+                          className="px-2 py-1 text-xs text-slate-400 hover:text-white font-medium transition-colors cursor-pointer"
                           title="Exit Voice Mode"
                         >
                           Exit
@@ -2327,14 +2420,14 @@ export const ChatPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={startVoiceMode}
-                          className="px-2.5 py-1 rounded-full bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+                          className="px-3 py-1 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-md shadow-amber-500/20"
                         >
                           Retry
                         </button>
                         <button
                           type="button"
                           onClick={exitVoiceMode}
-                          className="px-2 py-1 text-xs text-slate-500 hover:text-white font-medium transition-colors cursor-pointer"
+                          className="px-2 py-1 text-xs text-slate-400 hover:text-white font-medium transition-colors cursor-pointer"
                         >
                           Exit
                         </button>
@@ -2344,7 +2437,7 @@ export const ChatPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={startVoiceMode}
-                          className="px-3 py-1 rounded-full bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer active:scale-95"
+                          className="px-3.5 py-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-violet-500/25 transition-all cursor-pointer active:scale-95"
                         >
                           <span>🎙</span>
                           <span>Speak</span>
@@ -2352,7 +2445,7 @@ export const ChatPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={exitVoiceMode}
-                          className="px-2 py-1 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
+                          className="px-2 py-1 text-xs text-slate-400 hover:text-slate-200 font-medium transition-colors cursor-pointer"
                         >
                           Exit
                         </button>
@@ -2390,7 +2483,7 @@ export const ChatPage: React.FC = () => {
 
                   {/* Textarea or Active Recording / Transcribing Bar */}
                   {voiceRecorder.state === "recording" ? (
-                    <div className="flex-1 min-h-[40px] flex items-center justify-between px-3.5 py-1.5 bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/30 rounded-2xl animate-in fade-in">
+                    <div className="flex-1 min-h-[44px] flex items-center justify-between px-3.5 py-1.5 bg-gradient-to-r from-rose-500/[0.12] via-pink-500/[0.08] to-rose-500/[0.12] border border-rose-500/30 rounded-2xl animate-in fade-in">
                       <div className="flex items-center gap-2">
                         <div className="relative flex items-center justify-center">
                           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping absolute" />
@@ -2399,7 +2492,7 @@ export const ChatPage: React.FC = () => {
                         <span className="text-xs font-semibold text-rose-600 dark:text-rose-300">
                           Recording
                         </span>
-                        <span className="font-mono text-xs font-bold text-slate-800 dark:text-white px-2 py-0.5 rounded bg-black/5 dark:bg-white/10">
+                        <span className="font-mono text-xs font-bold text-slate-800 dark:text-white px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10">
                           {formatVoiceDuration(voiceRecorder.durationSeconds)}
                         </span>
                       </div>
@@ -2418,7 +2511,7 @@ export const ChatPage: React.FC = () => {
                           onClick={voiceRecorder.stopRecording}
                           title="Stop recording"
                           aria-label="Stop recording"
-                          className="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                          className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
                         >
                           <span className="w-2 h-2 rounded-sm bg-white" />
                           <span>Stop</span>
@@ -2426,7 +2519,7 @@ export const ChatPage: React.FC = () => {
                       </div>
                     </div>
                   ) : voiceRecorder.state === "stopping" || voiceRecorder.state === "transcribing" || voiceRecorder.isTranscribing ? (
-                    <div className="flex-1 min-h-[40px] flex items-center justify-between px-3.5 py-1.5 bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/30 rounded-2xl animate-in fade-in">
+                    <div className="flex-1 min-h-[44px] flex items-center justify-between px-3.5 py-1.5 bg-gradient-to-r from-indigo-500/[0.12] via-violet-500/[0.08] to-indigo-500/[0.12] border border-indigo-500/30 rounded-2xl animate-in fade-in">
                       <div className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300 font-medium">
                         <svg className="animate-spin h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -2493,7 +2586,7 @@ export const ChatPage: React.FC = () => {
                       className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-all mb-0.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 ${
                         voiceRecorder.state === "requesting_permission"
                           ? "text-amber-500 bg-amber-500/10 animate-pulse"
-                          : "text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8080a8] dark:hover:text-white dark:hover:bg-white/[0.08]"
+                          : "text-slate-400 hover:text-violet-500 hover:bg-violet-500/10 dark:text-[#8080a8] dark:hover:text-violet-300 dark:hover:bg-violet-500/15"
                       }`}
                     >
                       {voiceRecorder.state === "requesting_permission" ? (
@@ -2572,17 +2665,17 @@ export const ChatPage: React.FC = () => {
                   }}
                   disabled={isCurrentConvStreaming || isArchived}
                   title={agentMode ? "Switch to standard Chat" : "Switch to Agent Mode (with tools)"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 active:scale-95 ${
                     agentMode
-                      ? "bg-indigo-50 dark:bg-violet-500/25 text-indigo-700 dark:text-violet-200 border border-indigo-200/80 dark:border-violet-400/40 shadow-sm shadow-indigo-500/10 font-bold"
-                      : "bg-slate-100/90 dark:bg-white/[0.08] text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.12] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.12]"
+                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white border border-violet-400/50 shadow-md shadow-violet-500/25 font-bold"
+                      : "bg-slate-100/90 dark:bg-white/[0.06] text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.12]"
                   }`}
                 >
                   <span className="text-xs">{agentMode ? "⚡" : "⚙"}</span>
                   <span>Agent {agentMode ? "On" : "Off"}</span>
                 </button>
 
-                {/* Voice Mode Toggle Button (Step 5) */}
+                {/* Voice Mode Toggle Button */}
                 <button
                   type="button"
                   onClick={() => {
@@ -2594,13 +2687,22 @@ export const ChatPage: React.FC = () => {
                   }}
                   disabled={isCurrentConvStreaming || isArchived}
                   title={isVoiceMode ? "Exit Voice Mode" : "Start Voice Mode"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 active:scale-95 ${
                     isVoiceMode
-                      ? "bg-rose-50 dark:bg-rose-500/25 text-rose-700 dark:text-rose-200 border border-rose-300 dark:border-rose-400/40 shadow-sm shadow-rose-500/15 font-bold"
-                      : "bg-slate-100/90 dark:bg-white/[0.08] text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.12] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.12]"
+                      ? "bg-gradient-to-r from-rose-600 to-pink-600 text-white border border-rose-400/50 shadow-md shadow-rose-500/25 font-bold"
+                      : "bg-slate-100/90 dark:bg-white/[0.06] text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.12]"
                   }`}
                 >
-                  <span className="text-xs">{isVoiceMode ? "🔴" : "🎙"}</span>
+                  {isVoiceMode ? (
+                    <span className="relative flex items-center justify-center w-2.5 h-2.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping absolute" />
+                      <span className="w-2 h-2 rounded-full bg-white" />
+                    </span>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  )}
                   <span>Voice Mode {isVoiceMode ? "On" : "Off"}</span>
                 </button>
               </div>

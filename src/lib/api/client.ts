@@ -96,9 +96,12 @@ apiClient.interceptors.response.use(
   (error: AxiosError<ApiErrorResponse>) => {
     if (error.response?.status === 401) {
       const url = error.config?.url || '';
-      const isAuthAttempt = url.includes('/auth/login') || url.includes('/auth/register');
+      const isAuthAttempt =
+        url.includes('/auth/login') ||
+        url.includes('/auth/register') ||
+        url.includes('/auth/google');
 
-      // Only trigger session termination for authenticated requests, not initial login/register credential failures
+      // Only trigger session termination for authenticated requests, not initial login/register/google credential failures
       if (!isAuthAttempt && onUnauthorizedCallback) {
         onUnauthorizedCallback();
       }

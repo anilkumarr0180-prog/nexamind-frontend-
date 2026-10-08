@@ -7,6 +7,9 @@ export default {
   ],
   theme: {
     extend: {
+      spacing: {
+        '4.5': '1.125rem',
+      },
       fontFamily: {
         sans: ['"Inter"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         display: ['"Outfit"', '"Inter"', '"Plus Jakarta Sans"', 'sans-serif'],

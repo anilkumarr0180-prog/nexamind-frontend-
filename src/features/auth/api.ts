@@ -16,7 +16,13 @@ export const loginUser = async (credentials: LoginCredentials): Promise<AuthResu
   return response.data.data;
 };
 
+export const loginWithGoogle = async (credential: string): Promise<AuthResult> => {
+  const response = await apiClient.post<ApiResponse<AuthResult>>('/auth/google', { credential });
+  return response.data.data;
+};
+
 export const getCurrentUser = async (): Promise<SafeUser> => {
   const response = await apiClient.get<ApiResponse<SafeUser>>('/auth/me');
   return response.data.data;
 };
+
