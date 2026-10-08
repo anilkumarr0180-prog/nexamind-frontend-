@@ -6,7 +6,7 @@ export interface GoogleSignInButtonProps {
   onError?: (error: Error | string) => void;
   disabled?: boolean;
   isLoading?: boolean;
-  text?: 'continue' | 'signin' | 'signup';
+  text?: 'continue' | 'signin' | 'signup' | 'link';
   className?: string;
 }
 
@@ -26,7 +26,14 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       ? 'Sign up with Google'
       : text === 'signin'
         ? 'Sign in with Google'
-        : 'Continue with Google';
+        : text === 'link'
+          ? 'Link Google account'
+          : 'Continue with Google';
+
+  const loadingText =
+    text === 'link'
+      ? 'Linking Google account...'
+      : 'Signing in with Google...';
 
   const { isReady, isConfigured, renderButton, prompt } = useGoogleIdentityServices({
     onSuccess: async (credential) => {
@@ -42,7 +49,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       setInternalError(message);
       onError?.(err);
     },
-    context: text === 'signup' ? 'signup' : 'signin',
+    context: text === 'signup' ? 'signup' : (text === 'link' ? 'use' : 'signin'),
   });
 
   // Attempt official Google button render when GIS is ready and container is available
@@ -149,7 +156,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
               />
             </svg>
           )}
-          <span>{isLoading ? 'Signing in with Google...' : buttonText}</span>
+          <span>{isLoading ? loadingText : buttonText}</span>
         </button>
 
         {/* Official Google GIS Button Container (Overlayed invisibly to trigger real Google popup on click) */}

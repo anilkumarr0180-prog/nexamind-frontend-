@@ -7,7 +7,7 @@ import {
   setOnUnauthorizedCallback,
   clearOnUnauthorizedCallback,
 } from '@/lib/api/client';
-import { getCurrentUser, loginUser, registerUser, loginWithGoogle as loginWithGoogleApi, authKeys } from './api';
+import { getCurrentUser, loginUser, registerUser, loginWithGoogle as loginWithGoogleApi, linkGoogleAccount as linkGoogleAccountApi, authKeys } from './api';
 import type { LoginCredentials, RegisterCredentials, SafeUser } from '@/types';
 
 export type AuthStatus = 'AUTHENTICATING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
@@ -20,6 +20,7 @@ export interface AuthContextValue {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
+  linkGoogleAccount: (credential: string) => Promise<SafeUser>;
   logout: () => void;
   refetchUser: () => Promise<void>;
 }
@@ -110,6 +111,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     [queryClient],
   );
 
+  const linkGoogleAccount = useCallback(
+    async (credential: string): Promise<SafeUser> => {
+      const result = await linkGoogleAccountApi(credential);
+      setUser(result.user);
+      queryClient.setQueryData(authKeys.currentUser(), result.user);
+      return result.user;
+    },
+    [queryClient],
+  );
+
   const value: AuthContextValue = {
     status,
     user,
@@ -118,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     loginWithGoogle,
+    linkGoogleAccount,
     logout,
     refetchUser: loadCurrentUser,
   };

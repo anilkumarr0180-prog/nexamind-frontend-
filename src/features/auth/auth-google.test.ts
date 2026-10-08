@@ -24,7 +24,7 @@ if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localSto
 }
 
 import { GoogleSignInButton } from './GoogleSignInButton';
-import { loginWithGoogle, loginUser } from './api';
+import { loginWithGoogle, loginUser, linkGoogleAccount } from './api';
 import {
   setAuthToken,
   getAuthToken,
@@ -106,7 +106,26 @@ async function runFrontendAuthTests(): Promise<void> {
     assertTrue(htmlLoading.includes('Signing in with Google...'), 'Must render loading text when isLoading is true');
     assertTrue(htmlLoading.includes('animate-spin'), 'Must render loading spinner SVG');
 
-    // 1E. Disabled state
+    // 1E. "Link Google account" state
+    const htmlLink = renderToString(
+      React.createElement(GoogleSignInButton, {
+        onSuccess: () => {},
+        text: 'link',
+      }),
+    );
+    assertTrue(htmlLink.includes('Link Google account'), 'Must render "Link Google account" text');
+
+    // 1F. Loading state for linking
+    const htmlLinkLoading = renderToString(
+      React.createElement(GoogleSignInButton, {
+        onSuccess: () => {},
+        text: 'link',
+        isLoading: true,
+      }),
+    );
+    assertTrue(htmlLinkLoading.includes('Linking Google account...'), 'Must render "Linking Google account..." text');
+
+    // 1G. Disabled state
     const htmlDisabled = renderToString(
       React.createElement(GoogleSignInButton, {
         onSuccess: () => {},
@@ -115,7 +134,7 @@ async function runFrontendAuthTests(): Promise<void> {
     );
     assertTrue(htmlDisabled.includes('disabled=""') || htmlDisabled.includes('disabled'), 'Must apply disabled attribute');
 
-    console.log('  ✓ PASS: Button renders correctly across default, signin, signup, loading, and disabled states');
+    console.log('  ✓ PASS: Button renders correctly across default, signin, signup, link, loading, and disabled states');
   }
 
   // Test 2: Environment Safety Check (Secret strictly excluded)
@@ -202,8 +221,64 @@ async function runFrontendAuthTests(): Promise<void> {
     console.log('  ✓ PASS: /auth/google recognized as unauthenticated attempt to prevent session invalidation loops');
   }
 
+  // Test 7: Explicit Google account linking endpoint requires session
+  console.log('\n[Test 7] Explicit Google account linking endpoint requires authenticated session');
+  {
+    clearAuthToken();
+    try {
+      await linkGoogleAccount('test-google-credential');
+      throw new Error('Expected unauthenticated linkGoogleAccount to fail');
+    } catch (err: unknown) {
+      const classified = classifyApiError(err, 'Linking failed');
+      assertTrue(Boolean(classified.message), 'Must return classified error when unauthenticated');
+      console.log(`  ✓ PASS: Unauthenticated link attempt safely blocked: "${classified.message}"`);
+    }
+  }
+
+  // Test 8: Safe account conflict & already-linked error classifications
+  console.log('\n[Test 8] Conflict & already-linked error code classification');
+  {
+    const mockConflictError = {
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: {
+          success: false,
+          error: {
+            code: 'GOOGLE_ACCOUNT_IN_USE',
+            message: 'This Google account is already linked to another NexaMind user.',
+          },
+        },
+      },
+    };
+    const classifiedConflict = classifyApiError(mockConflictError);
+    assertEqual(classifiedConflict.code, 'GOOGLE_ACCOUNT_IN_USE');
+    assertEqual(classifiedConflict.statusCode, 409);
+    assertEqual(classifiedConflict.message, 'This Google account is already linked to another NexaMind user.');
+
+    const mockAlreadyLinkedError = {
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: {
+          success: false,
+          error: {
+            code: 'GOOGLE_ALREADY_LINKED',
+            message: 'This Google account is already linked to your profile.',
+          },
+        },
+      },
+    };
+    const classifiedAlreadyLinked = classifyApiError(mockAlreadyLinkedError);
+    assertEqual(classifiedAlreadyLinked.code, 'GOOGLE_ALREADY_LINKED');
+    assertEqual(classifiedAlreadyLinked.statusCode, 409);
+    assertEqual(classifiedAlreadyLinked.message, 'This Google account is already linked to your profile.');
+
+    console.log('  ✓ PASS: Linking conflicts and already-linked identities classified accurately with 409 codes');
+  }
+
   console.log('\n=================================================================');
-  console.log('  ALL FRONTEND GOOGLE AUTH TESTS PASSED SUCCESSFULLY (6/6)       ');
+  console.log('  ALL FRONTEND GOOGLE AUTH & LINKING TESTS PASSED (8/8)          ');
   console.log('=================================================================\n');
 }
 

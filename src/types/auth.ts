@@ -8,6 +8,8 @@ export interface SafeUser {
   email: string;
   status: UserStatus | string;
   roles: UserRole[] | string[];
+  isGoogleLinked?: boolean;
+  googleLinked?: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
