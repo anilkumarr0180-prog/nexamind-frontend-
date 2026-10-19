@@ -1,21 +1,23 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { LoginPage } from '@/pages/LoginPage';
-import { RegisterPage } from '@/pages/RegisterPage';
-import { ChatPage } from '@/pages/ChatPage';
-import { MemoriesPage } from '@/pages/MemoriesPage';
-import { SettingsPage } from '@/pages/SettingsPage';
-import { BillingPage } from '@/pages/BillingPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
-import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth';
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { LoginPage } from "@/pages/LoginPage";
+import { RegisterPage } from "@/pages/RegisterPage";
+import { ChatPage } from "@/pages/ChatPage";
+import { MemoriesPage } from "@/pages/MemoriesPage";
+import { SettingsPage } from "@/pages/SettingsPage";
+import { BillingPage } from "@/pages/BillingPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
+import { VscodeAuthPage } from "@/pages/VscodeAuthPage";
+import { PrivacyPolicyPage } from "@/pages/PrivacyPolicyPage";
+import { ProtectedRoute, PublicOnlyRoute } from "@/components/auth";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     element: <Navigate to="/app" replace />,
   },
   {
-    path: '/login',
+    path: "/login",
     element: (
       <PublicOnlyRoute>
         <LoginPage />
@@ -23,7 +25,7 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/register',
+    path: "/register",
     element: (
       <PublicOnlyRoute>
         <RegisterPage />
@@ -31,7 +33,19 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/app',
+    path: "/privacy",
+    element: <PrivacyPolicyPage />,
+  },
+  {
+    path: "/auth/vscode",
+    element: (
+      <ProtectedRoute>
+        <VscodeAuthPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/app",
     element: (
       <ProtectedRoute>
         <AppLayout />
@@ -43,25 +57,25 @@ export const router = createBrowserRouter([
         element: <ChatPage />,
       },
       {
-        path: 'chat/:conversationId',
+        path: "chat/:conversationId",
         element: <ChatPage />,
       },
       {
-        path: 'memories',
+        path: "memories",
         element: <MemoriesPage />,
       },
       {
-        path: 'settings',
+        path: "settings",
         element: <SettingsPage />,
       },
       {
-        path: 'billing',
+        path: "billing",
         element: <BillingPage />,
       },
     ],
   },
   {
-    path: '*',
+    path: "*",
     element: <NotFoundPage />,
   },
 ]);
