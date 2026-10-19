@@ -36,3 +36,26 @@ export const linkGoogleAccount = async (
   return response.data.data;
 };
 
+export interface VscodeAuthorizeRequest {
+  codeChallenge: string;
+  codeChallengeMethod?: string;
+  state: string;
+  redirectUri: string;
+}
+
+export interface VscodeAuthorizeResponse {
+  redirectUri: string;
+  code: string;
+  state: string;
+  expiresIn: number;
+}
+
+export const authorizeVscode = async (
+  payload: VscodeAuthorizeRequest,
+): Promise<VscodeAuthorizeResponse> => {
+  const response = await apiClient.post<ApiResponse<VscodeAuthorizeResponse>>(
+    "/auth/vscode/authorize",
+    payload,
+  );
+  return response.data.data;
+};

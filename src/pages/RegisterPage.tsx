@@ -320,6 +320,16 @@ export const RegisterPage: React.FC = () => {
             Sign in
           </Link>
         </div>
+
+        {/* Footer Privacy Link */}
+        <div className="text-center text-[11px] text-slate-500 select-none">
+          <Link
+            to="/privacy"
+            className="hover:text-slate-300 transition-colors underline decoration-slate-700 underline-offset-4"
+          >
+            Privacy Policy (Draft)
+          </Link>
+        </div>
       </div>
     </div>
   );
